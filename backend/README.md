@@ -36,6 +36,7 @@ pip install -r backend/requirements.txt
 
 3. Copie `backend/.env.example` para `backend/.env` e ajuste a `DATABASE_URL`.
    Se necessario, ajuste tambem `APP_HOST`, `APP_PORT`, `WEB_CONCURRENCY`, `CORS_ORIGINS`, `AUTH_SECRET_KEY` e `LOG_LEVEL`.
+   Em plataformas como Render, `PORT` (quando presente) sobrescreve `APP_PORT`.
 4. Suba um PostgreSQL local.
 5. Rode as migracoes:
 
@@ -133,6 +134,7 @@ Variaveis novas e importantes:
 
 - `APP_HOST`
 - `APP_PORT`
+- `PORT` (opcional para plataformas; tem prioridade sobre `APP_PORT`)
 - `WEB_CONCURRENCY`
 - `RUN_MIGRATIONS_ON_STARTUP`
 - `INTEGRATION_JSON_FEED_PATH`

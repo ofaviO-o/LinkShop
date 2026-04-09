@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from typing import Literal
 
@@ -35,6 +36,14 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_runtime_settings(self) -> "Settings":
+        port_override = os.getenv("PORT")
+        app_port_explicit = os.getenv("APP_PORT")
+        if port_override and not app_port_explicit:
+            try:
+                self.app_port = int(port_override)
+            except ValueError as exc:
+                raise ValueError("PORT must be an integer when provided") from exc
+
         if self.is_production and self.app_debug:
             raise ValueError("APP_DEBUG must be false in production")
 

@@ -30,6 +30,7 @@ Minimo para ambiente externo:
 - `REFRESH_TOKEN_TTL_DAYS`
 - `APP_HOST`
 - `APP_PORT`
+- `PORT` (em Render e similares, costuma vir automaticamente e tem prioridade sobre `APP_PORT`)
 - `WEB_CONCURRENCY`
 - `LOG_LEVEL`
 

@@ -7,8 +7,9 @@ fi
 
 if [ "$#" -eq 0 ] || [ "$1" = "python" -a "$2" = "-m" -a "$3" = "uvicorn" ]; then
   HOST="${APP_HOST:-0.0.0.0}"
-  PORT="${APP_PORT:-8000}"
+  PORT="${PORT:-${APP_PORT:-8000}}"
   WORKERS="${WEB_CONCURRENCY:-1}"
+  export APP_PORT="$PORT"
 
   exec python -m uvicorn app.main:app \
     --app-dir backend \

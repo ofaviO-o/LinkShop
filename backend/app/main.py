@@ -31,6 +31,11 @@ app.add_middleware(
 register_error_handlers(app)
 
 
+@app.get("/", tags=["health"])
+def root() -> dict[str, str]:
+    return {"service": settings.app_name, "status": "ok"}
+
+
 @app.get("/health", tags=["health"])
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
