@@ -49,10 +49,37 @@ class AuthService:
         password: str,
         name: str = "LinkShop Admin",
     ) -> tuple[User, bool]:
+        normalized_email = email.lower().strip()
+        normalized_name = name.strip()
+
+        existing_user = db.scalar(select(User).where(User.email == normalized_email))
+        if existing_user:
+            expected_hash = hash_password(password)
+            should_update = False
+
+            if existing_user.role != "admin":
+                existing_user.role = "admin"
+                should_update = True
+
+            if existing_user.password_hash != expected_hash:
+                existing_user.password_hash = expected_hash
+                should_update = True
+
+            if normalized_name and existing_user.name != normalized_name:
+                existing_user.name = normalized_name
+                should_update = True
+
+            if should_update:
+                db.add(existing_user)
+                db.commit()
+                db.refresh(existing_user)
+
+            return existing_user, False
+
         return AuthService._create_user(
             db,
-            name=name.strip(),
-            email=email.lower().strip(),
+            name=normalized_name,
+            email=normalized_email,
             password=password,
             role="admin",
         )
