@@ -24,6 +24,17 @@ export function SiteHeader() {
   const ownerId = useMemo(() => getPreferenceOwnerId(session), [session]);
   const favoritesCount = favorites.filter((favorite) => favorite.userId === ownerId).length;
   const cart = carts.find((entry) => entry.ownerId === ownerId);
+  const accountHref = session ? "/conta" : "/auth";
+  const accountLabel = session ? "Conta" : "Entrar";
+
+  function navItemClass(href: string) {
+    const isActive =
+      pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
+
+    return `rounded-full px-3 py-2 transition ${
+      isActive ? "bg-black/10 text-ink" : "text-neutral-600 hover:bg-black/5"
+    }`;
+  }
 
   return (
     <header className="glass-panel sticky top-4 z-30 flex flex-col gap-4 px-5 py-4 md:flex-row md:items-center md:justify-between">
@@ -38,13 +49,26 @@ export function SiteHeader() {
       </Link>
 
       <nav className="flex flex-wrap items-center gap-4 text-sm text-neutral-600">
-        <Link href="/">Inicio</Link>
-        <Link href="/buscar">Catalogo</Link>
-        <Link href="/favoritos">Favoritos ({favoritesCount})</Link>
-        <Link href="/lista">Sua lista ({cart?.totalItems ?? 0})</Link>
-        {session ? <Link href="/conta">Minha conta</Link> : null}
-        {isAdmin ? <Link href="/admin">Admin</Link> : null}
-        {!session ? <Link href="/auth">Entrar</Link> : null}
+        <Link href="/" className={navItemClass("/")}>
+          Inicio
+        </Link>
+        <Link href="/buscar" className={navItemClass("/buscar")}>
+          Buscar
+        </Link>
+        <Link href="/favoritos" className={navItemClass("/favoritos")}>
+          Favoritos ({favoritesCount})
+        </Link>
+        <Link href="/lista" className={navItemClass("/lista")}>
+          Lista ({cart?.totalItems ?? 0})
+        </Link>
+        <Link href={accountHref} className={navItemClass(accountHref)}>
+          {accountLabel}
+        </Link>
+        {isAdmin ? (
+          <Link href="/admin" className={navItemClass("/admin")}>
+            Admin
+          </Link>
+        ) : null}
       </nav>
 
       <div className="flex flex-col gap-3 md:items-end">
@@ -59,44 +83,15 @@ export function SiteHeader() {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          {session ? (
-            <Link
-              href="/conta"
-              className="inline-flex items-center justify-center rounded-full bg-coral px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
-            >
-              Minha conta
-            </Link>
-          ) : null}
-
-          {isAdmin ? (
-            <Link
-              href="/admin"
-              className="inline-flex items-center justify-center rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
-            >
-              Gerenciar catalogo
-            </Link>
-          ) : null}
-
-          {!session && pathname !== "/auth" ? (
-            <Link
-              href="/auth?next=/conta"
-              className="inline-flex items-center justify-center rounded-full bg-coral px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
-            >
-              Entrar ou cadastrar
-            </Link>
-          ) : null}
-
-          {session ? (
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              className="inline-flex items-center justify-center rounded-full bg-black/5 px-5 py-3 text-sm font-semibold text-ink transition hover:bg-black/10"
-            >
-              Sair
-            </button>
-          ) : null}
-        </div>
+        {session ? (
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="inline-flex items-center justify-center rounded-full bg-black/5 px-5 py-3 text-sm font-semibold text-ink transition hover:bg-black/10"
+          >
+            Sair
+          </button>
+        ) : null}
       </div>
     </header>
   );
