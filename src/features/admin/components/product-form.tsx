@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { adminCatalogService } from "@/features/admin/services/admin-catalog.service";
 import type { AdminProductDraft } from "@/features/admin/types/admin.types";
@@ -8,7 +8,7 @@ import type { CatalogItem } from "@/features/catalog/types/catalog.types";
 
 type ProductFormProps = {
   item: CatalogItem | null;
-  onSave: (item: CatalogItem) => void;
+  onSave: (item: CatalogItem) => Promise<{ ok: boolean; message: string }>;
   onCancel: () => void;
 };
 
@@ -16,22 +16,33 @@ const emptyDraft = adminCatalogService.buildDraft();
 
 export function ProductForm({ item, onSave, onCancel }: ProductFormProps) {
   const [draft, setDraft] = useState<AdminProductDraft>(emptyDraft);
-  const [isPending, startTransition] = useTransition();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     setDraft(adminCatalogService.buildDraft(item));
+    setFeedback(null);
   }, [item]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setIsSubmitting(true);
+    setFeedback(null);
 
-    startTransition(() => {
-      onSave(adminCatalogService.buildCatalogItemFromDraft(draft, item));
-
-      if (!item) {
-        setDraft(emptyDraft);
-      }
+    const result = await onSave(adminCatalogService.buildCatalogItemFromDraft(draft, item));
+    setFeedback({
+      type: result.ok ? "success" : "error",
+      message: result.message
     });
+
+    if (result.ok && !item) {
+      setDraft(emptyDraft);
+    }
+
+    setIsSubmitting(false);
   }
 
   return (
@@ -222,12 +233,24 @@ export function ProductForm({ item, onSave, onCancel }: ProductFormProps) {
           </label>
         </div>
 
+        {feedback ? (
+          <div
+            className={`rounded-2xl px-4 py-3 text-sm ${
+              feedback.type === "success"
+                ? "border border-lagoon/20 bg-lagoon/10 text-lagoon"
+                : "border border-coral/20 bg-coral/10 text-coral"
+            }`}
+          >
+            {feedback.message}
+          </div>
+        ) : null}
+
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isSubmitting}
           className="inline-flex items-center justify-center rounded-full bg-coral px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:opacity-70"
         >
-          {isPending ? "Salvando..." : "Salvar item"}
+          {isSubmitting ? "Salvando..." : "Salvar item"}
         </button>
       </div>
     </form>

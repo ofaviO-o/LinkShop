@@ -10,8 +10,9 @@ import { AdminRankingDiagnosticsPanel } from "@/features/admin/components/admin-
 import { AdminRankingPanel } from "@/features/admin/components/admin-ranking-panel";
 import { AdminSummaryCards } from "@/features/admin/components/admin-summary-cards";
 import { ProductForm } from "@/features/admin/components/product-form";
+import { adminProductsService } from "@/features/admin/services/admin-products.service";
 import type { AdminDashboardData } from "@/features/admin/types/admin.types";
-import type { CatalogSearchResult } from "@/features/catalog/types/catalog.types";
+import type { CatalogItem, CatalogSearchResult } from "@/features/catalog/types/catalog.types";
 import { useCatalogStore } from "@/stores";
 import { SectionHeading } from "@/shared/ui/section-heading";
 
@@ -27,6 +28,10 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
   const upsertCatalogItem = useCatalogStore((state) => state.upsertCatalogItem);
   const removeCatalogItem = useCatalogStore((state) => state.removeCatalogItem);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [catalogFeedback, setCatalogFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!initialized) {
@@ -75,6 +80,46 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
     ],
     [initialDashboard.alertAnalytics, initialDashboard.clickAnalytics]
   );
+
+  async function handleSaveCatalogItem(item: CatalogItem): Promise<{ ok: boolean; message: string }> {
+    setCatalogFeedback(null);
+    const isEditing = Boolean(editingItem);
+    const targetProductId = editingItem?.product.id ?? item.product.id;
+    const response = isEditing
+      ? await adminProductsService.updateProduct(targetProductId, item)
+      : await adminProductsService.createProduct(item);
+
+    if (!response.ok) {
+      const message = response.error.message;
+      setCatalogFeedback({ type: "error", message });
+      return { ok: false, message };
+    }
+
+    upsertCatalogItem(response.data);
+    setEditingProductId(null);
+
+    const message = isEditing ? "Produto atualizado com sucesso." : "Produto publicado com sucesso.";
+    setCatalogFeedback({ type: "success", message });
+    return { ok: true, message };
+  }
+
+  async function handleDeleteCatalogItem(productId: string) {
+    setCatalogFeedback(null);
+    const response = await adminProductsService.deleteProduct(productId);
+
+    if (!response.ok) {
+      setCatalogFeedback({ type: "error", message: response.error.message });
+      return;
+    }
+
+    removeCatalogItem(productId);
+
+    if (editingProductId === productId) {
+      setEditingProductId(null);
+    }
+
+    setCatalogFeedback({ type: "success", message: "Produto removido com sucesso." });
+  }
 
   return (
     <section className="section-shell">
@@ -152,23 +197,32 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
         <AdminRankingDiagnosticsPanel items={initialDashboard.rankingDiagnostics} />
       </div>
 
+      {catalogFeedback ? (
+        <div
+          className={`mt-6 rounded-[1.5rem] px-5 py-4 text-sm ${
+            catalogFeedback.type === "success"
+              ? "border border-lagoon/20 bg-lagoon/10 text-lagoon"
+              : "border border-coral/20 bg-coral/10 text-coral"
+          }`}
+        >
+          {catalogFeedback.message}
+        </div>
+      ) : null}
+
       <div className="mt-10 grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
         <ProductForm
           item={editingItem}
-          onSave={(item) => {
-            upsertCatalogItem(item);
-            setEditingProductId(null);
-          }}
+          onSave={handleSaveCatalogItem}
           onCancel={() => setEditingProductId(null)}
         />
         <AdminProductTable
           items={sortedItems}
-          onEdit={(item) => setEditingProductId(item.product.id)}
+          onEdit={(item) => {
+            setCatalogFeedback(null);
+            setEditingProductId(item.product.id);
+          }}
           onDelete={(productId) => {
-            removeCatalogItem(productId);
-            if (editingProductId === productId) {
-              setEditingProductId(null);
-            }
+            void handleDeleteCatalogItem(productId);
           }}
         />
       </div>
