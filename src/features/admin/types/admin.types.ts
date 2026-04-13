@@ -19,6 +19,23 @@ export type AdminProductDraft = {
   isFeatured: boolean;
 };
 
+export type AdminImportedProduct = {
+  provider: string;
+  sourceUrl: string;
+  storeId: "amazon" | "mercado-livre" | "shopee";
+  externalId?: string;
+  name?: string;
+  slug?: string;
+  brand?: string;
+  category?: string;
+  description?: string;
+  thumbnailUrl?: string;
+  sellerName?: string;
+  affiliateUrl?: string;
+  price?: number;
+  originalPrice?: number;
+};
+
 export type AdminCountItem = {
   id: string;
   label: string;

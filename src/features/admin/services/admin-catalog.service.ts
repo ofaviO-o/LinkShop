@@ -1,4 +1,4 @@
-import type { AdminProductDraft } from "@/features/admin/types/admin.types";
+import type { AdminImportedProduct, AdminProductDraft } from "@/features/admin/types/admin.types";
 import type { CatalogItem } from "@/features/catalog/types/catalog.types";
 import type { Offer } from "@/features/product/types/offer.types";
 import type { Product } from "@/features/product/types/product.types";
@@ -83,6 +83,25 @@ export const adminCatalogService = {
       highestPrice: offer.price,
       bestDiscountPercentage: calculateDiscountPercentage(offer.price, offer.originalPrice),
       storeIds: [offer.storeId]
+    };
+  },
+
+  buildDraftFromImport(imported: AdminImportedProduct, currentDraft?: AdminProductDraft): AdminProductDraft {
+    const base = currentDraft ?? adminCatalogService.buildDraft();
+
+    return {
+      ...base,
+      name: imported.name?.trim() || base.name,
+      slug: imported.slug?.trim() || base.slug,
+      brand: imported.brand?.trim() || base.brand,
+      category: imported.category?.trim() || base.category,
+      description: imported.description?.trim() || base.description,
+      thumbnailUrl: imported.thumbnailUrl?.trim() || base.thumbnailUrl,
+      storeId: imported.storeId || base.storeId,
+      sellerName: imported.sellerName?.trim() || base.sellerName,
+      affiliateUrl: imported.affiliateUrl?.trim() || base.affiliateUrl,
+      price: imported.price != null ? String(imported.price) : base.price,
+      originalPrice: imported.originalPrice != null ? String(imported.originalPrice) : base.originalPrice
     };
   }
 };

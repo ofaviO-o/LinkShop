@@ -1,4 +1,5 @@
 import type { CatalogItem } from "@/features/catalog/types/catalog.types";
+import type { AdminImportedProduct } from "@/features/admin/types/admin.types";
 import type { Offer } from "@/features/product/types/offer.types";
 import type { Product } from "@/features/product/types/product.types";
 import type { Store } from "@/features/product/types/store.types";
@@ -77,6 +78,27 @@ type AdminProductWritePayload = {
   shipping_cost: number | null;
   is_featured: boolean;
   availability: Offer["availability"];
+};
+
+type AdminProductImportPayload = {
+  url: string;
+};
+
+type BackendAdminProductImport = {
+  provider: string;
+  source_url: string;
+  store_code: Store["id"];
+  external_id: string | null;
+  name: string | null;
+  slug: string | null;
+  brand: string | null;
+  category: string | null;
+  description: string | null;
+  thumbnail_url: string | null;
+  seller_name: string | null;
+  affiliate_url: string;
+  price: string | number | null;
+  original_price: string | number | null;
 };
 
 function mapBackendProduct(product: BackendProduct): Product {
@@ -159,6 +181,25 @@ function toWritePayload(item: CatalogItem): AdminProductWritePayload {
   };
 }
 
+function mapBackendImportedProduct(payload: BackendAdminProductImport): AdminImportedProduct {
+  return {
+    provider: payload.provider,
+    sourceUrl: payload.source_url,
+    storeId: payload.store_code,
+    externalId: payload.external_id ?? undefined,
+    name: payload.name ?? undefined,
+    slug: payload.slug ?? undefined,
+    brand: payload.brand ?? undefined,
+    category: payload.category ?? undefined,
+    description: payload.description ?? undefined,
+    thumbnailUrl: payload.thumbnail_url ?? undefined,
+    sellerName: payload.seller_name ?? undefined,
+    affiliateUrl: payload.affiliate_url,
+    price: payload.price == null ? undefined : Number(payload.price),
+    originalPrice: payload.original_price == null ? undefined : Number(payload.original_price)
+  };
+}
+
 export const adminProductsService = {
   async createProduct(item: CatalogItem): Promise<ApiResponse<CatalogItem>> {
     try {
@@ -232,6 +273,20 @@ export const adminProductsService = {
       ok: true,
       data: { success: true },
       meta: response.meta
+    };
+  },
+
+  async importProductByUrl(url: string): Promise<ApiResponse<AdminImportedProduct>> {
+    const payload: AdminProductImportPayload = { url: url.trim() };
+    const response = await apiClient.post<BackendAdminProductImport>("/admin/products/import", payload);
+
+    if (!response.ok) {
+      return response;
+    }
+
+    return {
+      ...response,
+      data: mapBackendImportedProduct(response.data)
     };
   }
 };

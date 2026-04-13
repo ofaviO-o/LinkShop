@@ -3,19 +3,22 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import { adminCatalogService } from "@/features/admin/services/admin-catalog.service";
-import type { AdminProductDraft } from "@/features/admin/types/admin.types";
+import type { AdminImportedProduct, AdminProductDraft } from "@/features/admin/types/admin.types";
 import type { CatalogItem } from "@/features/catalog/types/catalog.types";
 
 type ProductFormProps = {
   item: CatalogItem | null;
   onSave: (item: CatalogItem) => Promise<{ ok: boolean; message: string }>;
+  onImportByUrl: (url: string) => Promise<{ ok: boolean; message: string; imported?: AdminImportedProduct }>;
   onCancel: () => void;
 };
 
 const emptyDraft = adminCatalogService.buildDraft();
 
-export function ProductForm({ item, onSave, onCancel }: ProductFormProps) {
+export function ProductForm({ item, onSave, onImportByUrl, onCancel }: ProductFormProps) {
   const [draft, setDraft] = useState<AdminProductDraft>(emptyDraft);
+  const [importUrl, setImportUrl] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
@@ -26,6 +29,35 @@ export function ProductForm({ item, onSave, onCancel }: ProductFormProps) {
     setDraft(adminCatalogService.buildDraft(item));
     setFeedback(null);
   }, [item]);
+
+  async function handleImport() {
+    const normalizedUrl = importUrl.trim();
+    if (!normalizedUrl) {
+      return;
+    }
+
+    setIsImporting(true);
+    setFeedback(null);
+
+    const result = await onImportByUrl(normalizedUrl);
+    const imported = result.imported;
+
+    if (!result.ok || !imported) {
+      setFeedback({
+        type: "error",
+        message: result.message
+      });
+      setIsImporting(false);
+      return;
+    }
+
+    setDraft((current) => adminCatalogService.buildDraftFromImport(imported, current));
+    setFeedback({
+      type: "success",
+      message: result.message
+    });
+    setIsImporting(false);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,6 +92,31 @@ export function ProductForm({ item, onSave, onCancel }: ProductFormProps) {
       </div>
 
       <div className="grid gap-4">
+        <div className="rounded-2xl border border-black/10 bg-white p-4">
+          <p className="text-sm font-semibold text-ink">Importar por link (Mercado Livre)</p>
+          <p className="mt-1 text-xs text-neutral-500">
+            Cole a URL do produto para preencher automaticamente os campos principais antes da revisao manual.
+          </p>
+
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <input
+              type="url"
+              value={importUrl}
+              onChange={(event) => setImportUrl(event.target.value)}
+              placeholder="https://produto.mercadolivre.com.br/..."
+              className="min-w-0 flex-1 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-coral/40"
+            />
+            <button
+              type="button"
+              onClick={() => void handleImport()}
+              disabled={isImporting || !importUrl.trim()}
+              className="inline-flex items-center justify-center rounded-full bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-60"
+            >
+              {isImporting ? "Importando..." : "Importar por link"}
+            </button>
+          </div>
+        </div>
+
         <div className="grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm text-neutral-600">
             Nome
