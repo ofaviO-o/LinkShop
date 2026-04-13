@@ -1,6 +1,9 @@
+import type { CatalogItem } from "@/features/catalog/types/catalog.types";
+
 export type AdminProductDraft = {
   productId?: string;
   offerId?: string;
+  externalId?: string;
   name: string;
   slug: string;
   brand: string;
@@ -37,6 +40,27 @@ export type AdminImportedProduct = {
   landingUrl?: string;
   price?: number;
   originalPrice?: number;
+};
+
+export type AdminBatchImportItem = {
+  url: string;
+  status: "imported" | "duplicate" | "invalid" | "extraction_failed" | "not_supported";
+  message: string;
+  productId: string | null;
+  productSlug: string | null;
+  catalogItem: CatalogItem | null;
+};
+
+export type AdminBatchImportResult = {
+  summary: {
+    total: number;
+    imported: number;
+    duplicates: number;
+    invalid: number;
+    extractionFailed: number;
+    notSupported: number;
+  };
+  results: AdminBatchImportItem[];
 };
 
 export type AdminCountItem = {

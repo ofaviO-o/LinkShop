@@ -1,5 +1,5 @@
 import type { CatalogItem } from "@/features/catalog/types/catalog.types";
-import type { AdminImportedProduct, AdminProductDraft } from "@/features/admin/types/admin.types";
+import type { AdminBatchImportResult, AdminImportedProduct, AdminProductDraft } from "@/features/admin/types/admin.types";
 import type { Offer } from "@/features/product/types/offer.types";
 import type { Product } from "@/features/product/types/product.types";
 import type { Store } from "@/features/product/types/store.types";
@@ -70,6 +70,7 @@ type AdminProductWritePayload = {
   is_active: boolean;
   offer_id?: string;
   store_code: Store["id"];
+  external_offer_id?: string;
   seller_name: string;
   affiliate_url: string;
   landing_url: string | null;
@@ -102,6 +103,31 @@ type BackendAdminProductImport = {
   landing_url: string;
   price: string | number | null;
   original_price: string | number | null;
+};
+
+type AdminProductBatchImportPayload = {
+  urls: string[];
+};
+
+type BackendAdminBatchImportItem = {
+  url: string;
+  status: "imported" | "duplicate" | "invalid" | "extraction_failed" | "not_supported";
+  message: string;
+  product_id: string | null;
+  product_slug: string | null;
+  catalog_item: BackendCatalogItem | null;
+};
+
+type BackendAdminBatchImportResponse = {
+  summary: {
+    total: number;
+    imported: number;
+    duplicates: number;
+    invalid: number;
+    extraction_failed: number;
+    not_supported: number;
+  };
+  results: BackendAdminBatchImportItem[];
 };
 
 function mapBackendProduct(product: BackendProduct): Product {
@@ -173,6 +199,7 @@ function toWritePayload(item: CatalogItem, draft?: AdminProductDraft): AdminProd
     is_active: item.product.isActive,
     offer_id: offer.id,
     store_code: offer.storeId,
+    external_offer_id: draft?.externalId?.trim() || undefined,
     seller_name: offer.sellerName.trim(),
     affiliate_url: offer.affiliateUrl.trim(),
     landing_url: draft?.landingUrl?.trim() || null,
@@ -203,6 +230,27 @@ function mapBackendImportedProduct(payload: BackendAdminProductImport): AdminImp
     landingUrl: payload.landing_url,
     price: payload.price == null ? undefined : Number(payload.price),
     originalPrice: payload.original_price == null ? undefined : Number(payload.original_price)
+  };
+}
+
+function mapBackendBatchImportResponse(payload: BackendAdminBatchImportResponse): AdminBatchImportResult {
+  return {
+    summary: {
+      total: payload.summary.total,
+      imported: payload.summary.imported,
+      duplicates: payload.summary.duplicates,
+      invalid: payload.summary.invalid,
+      extractionFailed: payload.summary.extraction_failed,
+      notSupported: payload.summary.not_supported
+    },
+    results: payload.results.map((entry) => ({
+      url: entry.url,
+      status: entry.status,
+      message: entry.message,
+      productId: entry.product_id,
+      productSlug: entry.product_slug,
+      catalogItem: entry.catalog_item ? mapBackendCatalogItem(entry.catalog_item) : null
+    }))
   };
 }
 
@@ -293,6 +341,22 @@ export const adminProductsService = {
     return {
       ...response,
       data: mapBackendImportedProduct(response.data)
+    };
+  },
+
+  async importProductsByUrlBatch(urls: string[]): Promise<ApiResponse<AdminBatchImportResult>> {
+    const payload: AdminProductBatchImportPayload = {
+      urls: urls.map((entry) => entry.trim()).filter(Boolean)
+    };
+    const response = await apiClient.post<BackendAdminBatchImportResponse>("/admin/products/import/batch", payload);
+
+    if (!response.ok) {
+      return response;
+    }
+
+    return {
+      ...response,
+      data: mapBackendBatchImportResponse(response.data)
     };
   }
 };

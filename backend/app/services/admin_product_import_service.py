@@ -6,8 +6,24 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from app.core.exceptions import BusinessRuleError
-from app.schemas.admin_product import AdminProductImportRead
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
+
+from app.core.exceptions import BusinessRuleError, ConflictError
+from app.models.offer import Offer
+from app.models.product import Product
+from app.models.store import Store
+from app.schemas.admin_product import (
+    AdminProductImportBatchInput,
+    AdminProductImportBatchItemRead,
+    AdminProductImportBatchRead,
+    AdminProductImportBatchSummaryRead,
+    AdminProductImportRead,
+    AdminProductWriteInput,
+)
+from app.schemas.product import CatalogItemRead
+from app.services.admin_product_service import AdminProductService
 
 
 def _slugify(value: str) -> str:
@@ -37,6 +53,159 @@ class AdminProductImportService:
             source_url=source_url,
             resolved_url=resolved_url,
             html=html,
+        )
+
+    @staticmethod
+    def import_batch(db: Session, payload: AdminProductImportBatchInput) -> AdminProductImportBatchRead:
+        results: list[AdminProductImportBatchItemRead] = []
+        counters = {
+            "imported": 0,
+            "duplicates": 0,
+            "invalid": 0,
+            "extraction_failed": 0,
+            "not_supported": 0,
+        }
+
+        for raw_url in payload.urls:
+            url = raw_url.strip()
+            if not url:
+                results.append(
+                    AdminProductImportBatchItemRead(
+                        url=raw_url,
+                        status="invalid",
+                        message="Empty URL entry",
+                    )
+                )
+                counters["invalid"] += 1
+                continue
+
+            try:
+                imported = AdminProductImportService.import_by_url(url)
+            except BusinessRuleError as exc:
+                status = AdminProductImportService._classify_error_status(exc.code)
+                results.append(
+                    AdminProductImportBatchItemRead(
+                        url=url,
+                        status=status,
+                        message=exc.message,
+                    )
+                )
+                counters[AdminProductImportService._counter_key_for_status(status)] += 1
+                continue
+            except Exception:
+                results.append(
+                    AdminProductImportBatchItemRead(
+                        url=url,
+                        status="extraction_failed",
+                        message="Unexpected import failure for URL",
+                    )
+                )
+                counters["extraction_failed"] += 1
+                continue
+
+            duplicate = AdminProductImportService._find_duplicate(db, imported)
+            if duplicate:
+                results.append(
+                    AdminProductImportBatchItemRead(
+                        url=url,
+                        status="duplicate",
+                        message=duplicate["message"],
+                        product_id=duplicate["product_id"],
+                        product_slug=duplicate["product_slug"],
+                    )
+                )
+                counters["duplicates"] += 1
+                continue
+
+            try:
+                write_payload = AdminProductWriteInput(
+                    slug=imported.slug,
+                    name=imported.name or "",
+                    brand=imported.brand or "Sem marca",
+                    category=imported.category or "Marketplace",
+                    description=imported.description or "Produto importado via lote.",
+                    thumbnail_url=imported.thumbnail_url or "",
+                    popularity_score=0,
+                    is_active=True,
+                    offer_id=None,
+                    store_code=imported.store_code,
+                    external_offer_id=imported.external_id,
+                    seller_name=imported.seller_name or "Marketplace",
+                    affiliate_url=imported.affiliate_url,
+                    landing_url=imported.landing_url,
+                    price=imported.price or Decimal("0"),
+                    original_price=imported.original_price,
+                    installment_text=None,
+                    shipping_cost=None,
+                    is_featured=False,
+                    availability="in_stock",
+                )
+            except Exception:
+                results.append(
+                    AdminProductImportBatchItemRead(
+                        url=url,
+                        status="extraction_failed",
+                        message="Insufficient data to build product payload",
+                    )
+                )
+                counters["extraction_failed"] += 1
+                continue
+
+            if not imported.price or not imported.thumbnail_url:
+                results.append(
+                    AdminProductImportBatchItemRead(
+                        url=url,
+                        status="extraction_failed",
+                        message="Missing required data (price or thumbnail)",
+                    )
+                )
+                counters["extraction_failed"] += 1
+                continue
+
+            try:
+                created_item = AdminProductService.create_product(db, write_payload)
+                catalog_item = CatalogItemRead.model_validate(created_item)
+                results.append(
+                    AdminProductImportBatchItemRead(
+                        url=url,
+                        status="imported",
+                        message="Imported successfully",
+                        product_id=catalog_item.product.id,
+                        product_slug=catalog_item.product.slug,
+                        catalog_item=catalog_item,
+                    )
+                )
+                counters["imported"] += 1
+            except Exception as exc:
+                mapped_status = "extraction_failed"
+                mapped_message = "Failed to persist imported product"
+
+                if isinstance(exc, (ConflictError, IntegrityError)):
+                    mapped_status = "duplicate"
+                    mapped_message = "Duplicate detected while persisting item"
+                elif isinstance(exc, BusinessRuleError):
+                    mapped_status = AdminProductImportService._classify_error_status(exc.code)
+                    mapped_message = exc.message
+
+                results.append(
+                    AdminProductImportBatchItemRead(
+                        url=url,
+                        status=mapped_status,
+                        message=mapped_message,
+                    )
+                )
+                counters[AdminProductImportService._counter_key_for_status(mapped_status)] += 1
+
+        return AdminProductImportBatchRead(
+            summary=AdminProductImportBatchSummaryRead(
+                total=len(payload.urls),
+                imported=counters["imported"],
+                duplicates=counters["duplicates"],
+                invalid=counters["invalid"],
+                extraction_failed=counters["extraction_failed"],
+                not_supported=counters["not_supported"],
+            ),
+            results=results,
         )
 
     @staticmethod
@@ -361,3 +530,79 @@ class AdminProductImportService:
             return Decimal(normalized)
         except InvalidOperation:
             return None
+
+    @staticmethod
+    def _classify_error_status(error_code: str | None) -> str:
+        if error_code == "IMPORT_PROVIDER_NOT_SUPPORTED":
+            return "not_supported"
+
+        if error_code in {"IMPORT_URL_INVALID", "IMPORT_REDIRECT_INVALID_DESTINATION", "IMPORT_REDIRECT_FAILED"}:
+            return "invalid"
+
+        if error_code in {"IMPORT_PARSE_FAILED", "IMPORT_FETCH_FAILED"}:
+            return "extraction_failed"
+
+        return "invalid"
+
+    @staticmethod
+    def _counter_key_for_status(status: str) -> str:
+        if status == "imported":
+            return "imported"
+        if status == "duplicate":
+            return "duplicates"
+        if status == "not_supported":
+            return "not_supported"
+        if status == "extraction_failed":
+            return "extraction_failed"
+        return "invalid"
+
+    @staticmethod
+    def _find_duplicate(db: Session, imported: AdminProductImportRead) -> dict[str, str] | None:
+        if imported.external_id:
+            existing_offer = db.scalar(
+                select(Offer)
+                .join(Store, Offer.store_id == Store.id)
+                .where(Store.code == imported.store_code, Offer.external_offer_id == imported.external_id)
+                .options(selectinload(Offer.product))
+            )
+            if existing_offer and existing_offer.product:
+                return {
+                    "message": "Duplicate by external offer id",
+                    "product_id": existing_offer.product.id,
+                    "product_slug": existing_offer.product.slug,
+                }
+
+        existing_by_landing = db.scalar(
+            select(Offer)
+            .where(Offer.landing_url == imported.landing_url)
+            .options(selectinload(Offer.product))
+        )
+        if existing_by_landing and existing_by_landing.product:
+            return {
+                "message": "Duplicate by landing URL",
+                "product_id": existing_by_landing.product.id,
+                "product_slug": existing_by_landing.product.slug,
+            }
+
+        existing_by_affiliate = db.scalar(
+            select(Offer)
+            .where(Offer.affiliate_url == imported.affiliate_url)
+            .options(selectinload(Offer.product))
+        )
+        if existing_by_affiliate and existing_by_affiliate.product:
+            return {
+                "message": "Duplicate by affiliate URL",
+                "product_id": existing_by_affiliate.product.id,
+                "product_slug": existing_by_affiliate.product.slug,
+            }
+
+        if imported.slug:
+            existing_product = db.scalar(select(Product).where(Product.slug == imported.slug))
+            if existing_product:
+                return {
+                    "message": "Duplicate by product slug",
+                    "product_id": existing_product.id,
+                    "product_slug": existing_product.slug,
+                }
+
+        return None

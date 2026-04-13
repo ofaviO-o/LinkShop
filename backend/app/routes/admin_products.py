@@ -5,7 +5,13 @@ from app.api.deps import get_current_admin_user
 from app.core.exceptions import NotFoundError
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.admin_product import AdminProductImportInput, AdminProductImportRead, AdminProductWriteInput
+from app.schemas.admin_product import (
+    AdminProductImportBatchInput,
+    AdminProductImportBatchRead,
+    AdminProductImportInput,
+    AdminProductImportRead,
+    AdminProductWriteInput,
+)
 from app.schemas.product import CatalogItemRead
 from app.services.admin_product_import_service import AdminProductImportService
 from app.services.admin_product_service import AdminProductService
@@ -21,6 +27,16 @@ def import_admin_product_by_url(
 ) -> AdminProductImportRead:
     _ = current_user
     return AdminProductImportService.import_by_url(payload.url)
+
+
+@router.post("/products/import/batch", response_model=AdminProductImportBatchRead)
+def import_admin_products_by_url_batch(
+    payload: AdminProductImportBatchInput,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> AdminProductImportBatchRead:
+    _ = current_user
+    return AdminProductImportService.import_batch(db, payload)
 
 
 @router.post("/products", response_model=CatalogItemRead, status_code=status.HTTP_201_CREATED)

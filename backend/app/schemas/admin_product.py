@@ -2,6 +2,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.product import CatalogItemRead
+
 
 class AdminProductWriteInput(BaseModel):
     slug: str | None = Field(default=None, min_length=1, max_length=180)
@@ -15,6 +17,7 @@ class AdminProductWriteInput(BaseModel):
 
     offer_id: str | None = Field(default=None, min_length=1, max_length=36)
     store_code: str = Field(min_length=1, max_length=60)
+    external_offer_id: str | None = Field(default=None, min_length=1, max_length=120)
     seller_name: str = Field(min_length=1, max_length=160)
     affiliate_url: str = Field(min_length=1)
     landing_url: str | None = Field(default=None, min_length=1, max_length=2000)
@@ -47,3 +50,30 @@ class AdminProductImportRead(BaseModel):
     landing_url: str = Field(min_length=1, max_length=2000)
     price: Decimal | None = Field(default=None, gt=0)
     original_price: Decimal | None = Field(default=None, gt=0)
+
+
+class AdminProductImportBatchInput(BaseModel):
+    urls: list[str] = Field(min_length=1, max_length=200)
+
+
+class AdminProductImportBatchItemRead(BaseModel):
+    url: str
+    status: str
+    message: str
+    product_id: str | None = None
+    product_slug: str | None = None
+    catalog_item: CatalogItemRead | None = None
+
+
+class AdminProductImportBatchSummaryRead(BaseModel):
+    total: int
+    imported: int
+    duplicates: int
+    invalid: int
+    extraction_failed: int
+    not_supported: int
+
+
+class AdminProductImportBatchRead(BaseModel):
+    summary: AdminProductImportBatchSummaryRead
+    results: list[AdminProductImportBatchItemRead]

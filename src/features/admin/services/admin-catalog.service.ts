@@ -20,6 +20,7 @@ export const adminCatalogService = {
     return {
       productId: item?.product.id,
       offerId: primaryOffer?.id,
+      externalId: undefined,
       name: item?.product.name ?? "",
       slug: item?.product.slug ?? "",
       brand: item?.product.brand ?? "",
@@ -93,6 +94,7 @@ export const adminCatalogService = {
     return {
       ...base,
       name: imported.name?.trim() || base.name,
+      externalId: imported.externalId?.trim() || base.externalId,
       slug: imported.slug?.trim() || base.slug,
       brand: imported.brand?.trim() || base.brand,
       category: imported.category?.trim() || base.category,

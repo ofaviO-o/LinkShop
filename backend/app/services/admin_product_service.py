@@ -43,6 +43,7 @@ class AdminProductService:
         offer = Offer(
             product_id=product.id,
             store_id=store.id,
+            external_offer_id=AdminProductService._normalize_optional_text(payload.external_offer_id),
             seller_name=payload.seller_name.strip(),
             title=payload.name.strip(),
             affiliate_url=payload.affiliate_url.strip(),
@@ -94,6 +95,7 @@ class AdminProductService:
             offer = Offer(
                 product_id=product.id,
                 store_id=store.id,
+                external_offer_id=AdminProductService._normalize_optional_text(payload.external_offer_id),
                 seller_name=payload.seller_name.strip(),
                 title=payload.name.strip(),
                 affiliate_url=payload.affiliate_url.strip(),
@@ -111,6 +113,7 @@ class AdminProductService:
             db.add(offer)
         else:
             offer.store_id = store.id
+            offer.external_offer_id = AdminProductService._normalize_optional_text(payload.external_offer_id)
             offer.seller_name = payload.seller_name.strip()
             offer.title = payload.name.strip()
             offer.affiliate_url = payload.affiliate_url.strip()

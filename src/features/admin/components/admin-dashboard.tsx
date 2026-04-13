@@ -11,7 +11,12 @@ import { AdminRankingPanel } from "@/features/admin/components/admin-ranking-pan
 import { AdminSummaryCards } from "@/features/admin/components/admin-summary-cards";
 import { ProductForm } from "@/features/admin/components/product-form";
 import { adminProductsService } from "@/features/admin/services/admin-products.service";
-import type { AdminDashboardData, AdminImportedProduct, AdminProductDraft } from "@/features/admin/types/admin.types";
+import type {
+  AdminBatchImportResult,
+  AdminDashboardData,
+  AdminImportedProduct,
+  AdminProductDraft
+} from "@/features/admin/types/admin.types";
 import type { CatalogItem, CatalogSearchResult } from "@/features/catalog/types/catalog.types";
 import { useCatalogStore } from "@/stores";
 import { SectionHeading } from "@/shared/ui/section-heading";
@@ -32,6 +37,9 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
     type: "success" | "error";
     message: string;
   } | null>(null);
+  const [batchInput, setBatchInput] = useState("");
+  const [isBatchImporting, setIsBatchImporting] = useState(false);
+  const [batchResult, setBatchResult] = useState<AdminBatchImportResult | null>(null);
 
   useEffect(() => {
     if (!initialized) {
@@ -143,6 +151,49 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
     };
   }
 
+  async function handleBatchImport() {
+    const urls = batchInput
+      .split(/\r?\n/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    if (!urls.length) {
+      setCatalogFeedback({
+        type: "error",
+        message: "Cole pelo menos uma URL para importar em lote."
+      });
+      return;
+    }
+
+    setCatalogFeedback(null);
+    setBatchResult(null);
+    setIsBatchImporting(true);
+    setEditingProductId(null);
+
+    const response = await adminProductsService.importProductsByUrlBatch(urls);
+    if (!response.ok) {
+      setCatalogFeedback({
+        type: "error",
+        message: response.error.message
+      });
+      setIsBatchImporting(false);
+      return;
+    }
+
+    setBatchResult(response.data);
+    response.data.results.forEach((entry) => {
+      if (entry.catalogItem) {
+        upsertCatalogItem(entry.catalogItem);
+      }
+    });
+
+    setCatalogFeedback({
+      type: "success",
+      message: `Lote processado: ${response.data.summary.imported} importados, ${response.data.summary.duplicates} duplicados, ${response.data.summary.invalid} inválidos.`
+    });
+    setIsBatchImporting(false);
+  }
+
   return (
     <section className="section-shell">
       <SectionHeading
@@ -230,6 +281,64 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
           {catalogFeedback.message}
         </div>
       ) : null}
+
+      <div className="mt-6 rounded-[1.5rem] bg-white p-5 shadow-glow">
+        <h3 className="font-display text-2xl">Importacao em lote (Mercado Livre)</h3>
+        <p className="mt-2 text-sm text-neutral-600">
+          Cole uma URL por linha. Aceita links diretos e links de afiliado.
+        </p>
+
+        <textarea
+          value={batchInput}
+          onChange={(event) => setBatchInput(event.target.value)}
+          rows={6}
+          placeholder={"https://produto.mercadolivre.com.br/...\nhttps://seu-link-afiliado..."}
+          className="mt-3 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-coral/40"
+        />
+
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void handleBatchImport()}
+            disabled={isBatchImporting}
+            className="inline-flex items-center justify-center rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-60"
+          >
+            {isBatchImporting ? "Importando lote..." : "Importar lote"}
+          </button>
+          <span className="text-xs text-neutral-500">1 URL por linha</span>
+        </div>
+
+        {batchResult ? (
+          <div className="mt-4 rounded-2xl border border-black/10 bg-black/5 p-4">
+            <p className="text-sm font-semibold text-ink">
+              Resumo: {batchResult.summary.imported} importados | {batchResult.summary.duplicates} duplicados |{" "}
+              {batchResult.summary.invalid} inválidos | {batchResult.summary.extractionFailed} falha de extração |{" "}
+              {batchResult.summary.notSupported} não suportados
+            </p>
+
+            <div className="mt-3 max-h-56 overflow-auto rounded-xl bg-white">
+              <table className="w-full text-left text-xs text-neutral-600">
+                <thead className="sticky top-0 bg-white">
+                  <tr>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">URL</th>
+                    <th className="px-3 py-2">Mensagem</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {batchResult.results.map((entry, index) => (
+                    <tr key={`${entry.url}-${index}`} className="border-t border-black/5">
+                      <td className="px-3 py-2">{entry.status}</td>
+                      <td className="max-w-[280px] truncate px-3 py-2">{entry.url}</td>
+                      <td className="px-3 py-2">{entry.message}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       <div className="mt-10 grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
         <ProductForm
