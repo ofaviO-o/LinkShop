@@ -117,14 +117,29 @@ class AdminProductImportService:
                 counters["duplicates"] += 1
                 continue
 
+            missing_fields = AdminProductImportService._collect_missing_required_fields(imported)
+            if missing_fields:
+                results.append(
+                    AdminProductImportBatchItemRead(
+                        url=url,
+                        status="extraction_failed",
+                        message=f"missing_required_field: {', '.join(missing_fields)}",
+                    )
+                )
+                counters["extraction_failed"] += 1
+                continue
+
             try:
+                assert imported.price is not None
+                assert imported.thumbnail_url is not None
+
                 write_payload = AdminProductWriteInput(
                     slug=imported.slug,
                     name=imported.name or "",
                     brand=imported.brand or "Sem marca",
                     category=imported.category or "Marketplace",
                     description=imported.description or "Produto importado via lote.",
-                    thumbnail_url=imported.thumbnail_url or "",
+                    thumbnail_url=imported.thumbnail_url.strip(),
                     popularity_score=0,
                     is_active=True,
                     offer_id=None,
@@ -133,7 +148,7 @@ class AdminProductImportService:
                     seller_name=imported.seller_name or "Marketplace",
                     affiliate_url=imported.affiliate_url,
                     landing_url=imported.landing_url,
-                    price=imported.price or Decimal("0"),
+                    price=imported.price,
                     original_price=imported.original_price,
                     installment_text=None,
                     shipping_cost=None,
@@ -146,17 +161,6 @@ class AdminProductImportService:
                         url=url,
                         status="extraction_failed",
                         message="Insufficient data to build product payload",
-                    )
-                )
-                counters["extraction_failed"] += 1
-                continue
-
-            if not imported.price or not imported.thumbnail_url:
-                results.append(
-                    AdminProductImportBatchItemRead(
-                        url=url,
-                        status="extraction_failed",
-                        message="Missing required data (price or thumbnail)",
                     )
                 )
                 counters["extraction_failed"] += 1
@@ -530,6 +534,18 @@ class AdminProductImportService:
             return Decimal(normalized)
         except InvalidOperation:
             return None
+
+    @staticmethod
+    def _collect_missing_required_fields(imported: AdminProductImportRead) -> list[str]:
+        missing_fields: list[str] = []
+
+        if imported.price is None or imported.price <= 0:
+            missing_fields.append("price")
+
+        if not imported.thumbnail_url or not imported.thumbnail_url.strip():
+            missing_fields.append("thumbnail_url")
+
+        return missing_fields
 
     @staticmethod
     def _classify_error_status(error_code: str | None) -> str:
