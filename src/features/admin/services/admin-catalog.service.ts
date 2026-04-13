@@ -31,6 +31,7 @@ export const adminCatalogService = {
       storeId: primaryOffer?.storeId ?? "amazon",
       sellerName: primaryOffer?.sellerName ?? "",
       affiliateUrl: primaryOffer?.affiliateUrl ?? "",
+      landingUrl: undefined,
       price: primaryOffer ? String(primaryOffer.price) : "",
       originalPrice: primaryOffer?.originalPrice ? String(primaryOffer.originalPrice) : "",
       installmentText: primaryOffer?.installmentText ?? "",
@@ -100,6 +101,7 @@ export const adminCatalogService = {
       storeId: imported.storeId || base.storeId,
       sellerName: imported.sellerName?.trim() || base.sellerName,
       affiliateUrl: imported.affiliateUrl?.trim() || base.affiliateUrl,
+      landingUrl: imported.landingUrl?.trim() || imported.resolvedUrl?.trim() || base.landingUrl,
       price: imported.price != null ? String(imported.price) : base.price,
       originalPrice: imported.originalPrice != null ? String(imported.originalPrice) : base.originalPrice
     };

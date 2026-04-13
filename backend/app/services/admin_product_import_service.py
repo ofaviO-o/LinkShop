@@ -23,20 +23,26 @@ class AdminProductImportService:
 
     @staticmethod
     def import_by_url(url: str) -> AdminProductImportRead:
-        normalized_url = url.strip()
-        provider = AdminProductImportService._detect_provider(normalized_url)
+        source_url = AdminProductImportService._normalize_input_url(url)
+        html, resolved_url = AdminProductImportService._fetch_html_with_redirects(source_url)
+        provider = AdminProductImportService._detect_provider(resolved_url)
 
         if provider != "mercado-livre":
             raise BusinessRuleError(
-                "Unsupported provider URL",
+                "Provider not supported yet. Use a Mercado Livre product URL.",
                 code="IMPORT_PROVIDER_NOT_SUPPORTED",
             )
 
-        return AdminProductImportService._import_mercado_livre(normalized_url)
+        return AdminProductImportService._import_mercado_livre(
+            source_url=source_url,
+            resolved_url=resolved_url,
+            html=html,
+        )
 
     @staticmethod
-    def _detect_provider(url: str) -> str:
-        parsed = urlparse(url)
+    def _normalize_input_url(url: str) -> str:
+        normalized_url = url.strip()
+        parsed = urlparse(normalized_url)
 
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise BusinessRuleError(
@@ -44,6 +50,11 @@ class AdminProductImportService:
                 code="IMPORT_URL_INVALID",
             )
 
+        return normalized_url
+
+    @staticmethod
+    def _detect_provider(url: str) -> str:
+        parsed = urlparse(url)
         host = parsed.netloc.lower()
 
         if any(marker in host for marker in AdminProductImportService._MERCADO_LIVRE_HOST_MARKERS):
@@ -55,46 +66,7 @@ class AdminProductImportService:
         )
 
     @staticmethod
-    def _import_mercado_livre(url: str) -> AdminProductImportRead:
-        html = AdminProductImportService._fetch_html(url)
-        meta = AdminProductImportService._extract_meta_tags(html)
-        product_json = AdminProductImportService._extract_product_json_ld(html)
-
-        external_id = AdminProductImportService._extract_external_id(url, html)
-        name = AdminProductImportService._extract_name(product_json, meta)
-        description = AdminProductImportService._extract_description(product_json, meta)
-        thumbnail_url = AdminProductImportService._extract_thumbnail_url(product_json, meta)
-        brand = AdminProductImportService._extract_brand(product_json)
-        category = AdminProductImportService._extract_category(product_json)
-        seller_name = AdminProductImportService._extract_seller_name(product_json)
-        price = AdminProductImportService._extract_price(product_json, meta)
-        original_price = AdminProductImportService._extract_original_price(product_json, price)
-
-        if not name:
-            raise BusinessRuleError(
-                "Could not extract product name from URL",
-                code="IMPORT_PARSE_FAILED",
-            )
-
-        return AdminProductImportRead(
-            provider="mercado-livre",
-            source_url=url,
-            store_code="mercado-livre",
-            external_id=external_id,
-            name=name,
-            slug=_slugify(name),
-            brand=brand or "Sem marca",
-            category=category or "Marketplace",
-            description=description or "Produto importado via link de afiliado.",
-            thumbnail_url=thumbnail_url,
-            seller_name=seller_name or "Mercado Livre",
-            affiliate_url=url,
-            price=price,
-            original_price=original_price,
-        )
-
-    @staticmethod
-    def _fetch_html(url: str) -> str:
+    def _fetch_html_with_redirects(url: str) -> tuple[str, str]:
         request = Request(
             url,
             headers={
@@ -106,20 +78,69 @@ class AdminProductImportService:
         try:
             with urlopen(request, timeout=12) as response:
                 content = response.read()
+                resolved_url = response.geturl()
         except HTTPError as exc:
             raise BusinessRuleError(
                 "Provider returned an error while importing product URL",
-                code="IMPORT_FETCH_FAILED",
+                code="IMPORT_REDIRECT_FAILED",
                 status_code=502,
             ) from exc
         except URLError as exc:
             raise BusinessRuleError(
-                "Could not reach provider URL",
-                code="IMPORT_FETCH_FAILED",
+                "Could not resolve product URL redirects",
+                code="IMPORT_REDIRECT_FAILED",
                 status_code=502,
             ) from exc
 
-        return content.decode("utf-8", errors="ignore")
+        parsed = urlparse(resolved_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise BusinessRuleError(
+                "Redirect destination is invalid",
+                code="IMPORT_REDIRECT_INVALID_DESTINATION",
+                status_code=400,
+            )
+
+        return content.decode("utf-8", errors="ignore"), resolved_url
+
+    @staticmethod
+    def _import_mercado_livre(*, source_url: str, resolved_url: str, html: str) -> AdminProductImportRead:
+        meta = AdminProductImportService._extract_meta_tags(html)
+        product_json = AdminProductImportService._extract_product_json_ld(html)
+
+        external_id = AdminProductImportService._extract_external_id(resolved_url, html)
+        name = AdminProductImportService._extract_name(product_json, meta)
+        description = AdminProductImportService._extract_description(product_json, meta)
+        thumbnail_url = AdminProductImportService._extract_thumbnail_url(product_json, meta)
+        brand = AdminProductImportService._extract_brand(product_json)
+        category = AdminProductImportService._extract_category(product_json)
+        seller_name = AdminProductImportService._extract_seller_name(product_json)
+        price = AdminProductImportService._extract_price(product_json, meta)
+        original_price = AdminProductImportService._extract_original_price(product_json, price)
+
+        if not name:
+            raise BusinessRuleError(
+                "Could not extract enough product data from destination URL",
+                code="IMPORT_PARSE_FAILED",
+            )
+
+        return AdminProductImportRead(
+            provider="mercado-livre",
+            source_url=source_url,
+            resolved_url=resolved_url,
+            store_code="mercado-livre",
+            external_id=external_id,
+            name=name,
+            slug=_slugify(name),
+            brand=brand or "Sem marca",
+            category=category or "Marketplace",
+            description=description or "Produto importado via link de afiliado.",
+            thumbnail_url=thumbnail_url,
+            seller_name=seller_name or "Mercado Livre",
+            affiliate_url=source_url,
+            landing_url=resolved_url,
+            price=price,
+            original_price=original_price,
+        )
 
     @staticmethod
     def _extract_meta_tags(html: str) -> dict[str, str]:
@@ -186,13 +207,15 @@ class AdminProductImportService:
 
     @staticmethod
     def _extract_external_id(url: str, html: str) -> str | None:
-        url_match = re.search(r"/(MLB-\d+)", url, flags=re.IGNORECASE)
+        url_match = re.search(r"(MLB[-]?\d+)", url, flags=re.IGNORECASE)
         if url_match:
-            return url_match.group(1).upper()
+            raw = url_match.group(1).upper().replace("MLB", "MLB-")
+            return raw if raw.startswith("MLB-") else f"MLB-{raw[3:]}"
 
         html_match = re.search(r"(MLB[-]?\d+)", html, flags=re.IGNORECASE)
         if html_match:
-            return html_match.group(1).upper().replace("MLB", "MLB-") if "-" not in html_match.group(1) else html_match.group(1).upper()
+            raw = html_match.group(1).upper().replace("MLB", "MLB-")
+            return raw if raw.startswith("MLB-") else f"MLB-{raw[3:]}"
 
         return None
 

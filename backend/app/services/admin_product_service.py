@@ -46,6 +46,7 @@ class AdminProductService:
             seller_name=payload.seller_name.strip(),
             title=payload.name.strip(),
             affiliate_url=payload.affiliate_url.strip(),
+            landing_url=AdminProductService._normalize_optional_url(payload.landing_url),
             price=payload.price,
             original_price=payload.original_price,
             currency="BRL",
@@ -96,6 +97,7 @@ class AdminProductService:
                 seller_name=payload.seller_name.strip(),
                 title=payload.name.strip(),
                 affiliate_url=payload.affiliate_url.strip(),
+                landing_url=AdminProductService._normalize_optional_url(payload.landing_url),
                 price=payload.price,
                 original_price=payload.original_price,
                 currency="BRL",
@@ -112,6 +114,7 @@ class AdminProductService:
             offer.seller_name = payload.seller_name.strip()
             offer.title = payload.name.strip()
             offer.affiliate_url = payload.affiliate_url.strip()
+            offer.landing_url = AdminProductService._normalize_optional_url(payload.landing_url)
             offer.price = payload.price
             offer.original_price = payload.original_price
             offer.shipping_cost = payload.shipping_cost
@@ -224,6 +227,10 @@ class AdminProductService:
 
         normalized = value.strip()
         return normalized or None
+
+    @staticmethod
+    def _normalize_optional_url(value: str | None) -> str | None:
+        return AdminProductService._normalize_optional_text(value)
 
     @staticmethod
     def _validate_price_payload(price: Decimal, original_price: Decimal | None) -> None:

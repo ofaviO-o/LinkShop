@@ -11,7 +11,7 @@ import { AdminRankingPanel } from "@/features/admin/components/admin-ranking-pan
 import { AdminSummaryCards } from "@/features/admin/components/admin-summary-cards";
 import { ProductForm } from "@/features/admin/components/product-form";
 import { adminProductsService } from "@/features/admin/services/admin-products.service";
-import type { AdminDashboardData, AdminImportedProduct } from "@/features/admin/types/admin.types";
+import type { AdminDashboardData, AdminImportedProduct, AdminProductDraft } from "@/features/admin/types/admin.types";
 import type { CatalogItem, CatalogSearchResult } from "@/features/catalog/types/catalog.types";
 import { useCatalogStore } from "@/stores";
 import { SectionHeading } from "@/shared/ui/section-heading";
@@ -81,13 +81,13 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
     [initialDashboard.alertAnalytics, initialDashboard.clickAnalytics]
   );
 
-  async function handleSaveCatalogItem(item: CatalogItem): Promise<{ ok: boolean; message: string }> {
+  async function handleSaveCatalogItem(item: CatalogItem, draft: AdminProductDraft): Promise<{ ok: boolean; message: string }> {
     setCatalogFeedback(null);
     const isEditing = Boolean(editingItem);
     const targetProductId = editingItem?.product.id ?? item.product.id;
     const response = isEditing
-      ? await adminProductsService.updateProduct(targetProductId, item)
-      : await adminProductsService.createProduct(item);
+      ? await adminProductsService.updateProduct(targetProductId, item, draft)
+      : await adminProductsService.createProduct(item, draft);
 
     if (!response.ok) {
       const message = response.error.message;
@@ -138,7 +138,7 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
 
     return {
       ok: true,
-      message: "Dados importados. Revise os campos antes de salvar o produto.",
+      message: "Dados importados. Link original preservado e destino resolvido para revisao antes de salvar.",
       imported: response.data
     };
   }

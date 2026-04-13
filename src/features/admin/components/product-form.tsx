@@ -8,7 +8,7 @@ import type { CatalogItem } from "@/features/catalog/types/catalog.types";
 
 type ProductFormProps = {
   item: CatalogItem | null;
-  onSave: (item: CatalogItem) => Promise<{ ok: boolean; message: string }>;
+  onSave: (item: CatalogItem, draft: AdminProductDraft) => Promise<{ ok: boolean; message: string }>;
   onImportByUrl: (url: string) => Promise<{ ok: boolean; message: string; imported?: AdminImportedProduct }>;
   onCancel: () => void;
 };
@@ -64,7 +64,7 @@ export function ProductForm({ item, onSave, onImportByUrl, onCancel }: ProductFo
     setIsSubmitting(true);
     setFeedback(null);
 
-    const result = await onSave(adminCatalogService.buildCatalogItemFromDraft(draft, item));
+    const result = await onSave(adminCatalogService.buildCatalogItemFromDraft(draft, item), draft);
     setFeedback({
       type: result.ok ? "success" : "error",
       message: result.message
@@ -93,9 +93,9 @@ export function ProductForm({ item, onSave, onImportByUrl, onCancel }: ProductFo
 
       <div className="grid gap-4">
         <div className="rounded-2xl border border-black/10 bg-white p-4">
-          <p className="text-sm font-semibold text-ink">Importar por link (Mercado Livre)</p>
+          <p className="text-sm font-semibold text-ink">Importar por link (produto ou afiliado)</p>
           <p className="mt-1 text-xs text-neutral-500">
-            Cole a URL do produto para preencher automaticamente os campos principais antes da revisao manual.
+            Cole uma URL direta ou afiliada. O sistema resolve o destino final (Mercado Livre) e preenche os campos para revisao manual.
           </p>
 
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">

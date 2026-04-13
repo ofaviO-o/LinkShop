@@ -1,5 +1,5 @@
 import type { CatalogItem } from "@/features/catalog/types/catalog.types";
-import type { AdminImportedProduct } from "@/features/admin/types/admin.types";
+import type { AdminImportedProduct, AdminProductDraft } from "@/features/admin/types/admin.types";
 import type { Offer } from "@/features/product/types/offer.types";
 import type { Product } from "@/features/product/types/product.types";
 import type { Store } from "@/features/product/types/store.types";
@@ -72,6 +72,7 @@ type AdminProductWritePayload = {
   store_code: Store["id"];
   seller_name: string;
   affiliate_url: string;
+  landing_url: string | null;
   price: number;
   original_price: number | null;
   installment_text: string | null;
@@ -87,6 +88,7 @@ type AdminProductImportPayload = {
 type BackendAdminProductImport = {
   provider: string;
   source_url: string;
+  resolved_url: string;
   store_code: Store["id"];
   external_id: string | null;
   name: string | null;
@@ -97,6 +99,7 @@ type BackendAdminProductImport = {
   thumbnail_url: string | null;
   seller_name: string | null;
   affiliate_url: string;
+  landing_url: string;
   price: string | number | null;
   original_price: string | number | null;
 };
@@ -152,7 +155,7 @@ function mapBackendCatalogItem(item: BackendCatalogItem): CatalogItem {
   };
 }
 
-function toWritePayload(item: CatalogItem): AdminProductWritePayload {
+function toWritePayload(item: CatalogItem, draft?: AdminProductDraft): AdminProductWritePayload {
   const offer = item.bestOffer ?? item.offers[0];
 
   if (!offer) {
@@ -172,6 +175,7 @@ function toWritePayload(item: CatalogItem): AdminProductWritePayload {
     store_code: offer.storeId,
     seller_name: offer.sellerName.trim(),
     affiliate_url: offer.affiliateUrl.trim(),
+    landing_url: draft?.landingUrl?.trim() || null,
     price: offer.price,
     original_price: offer.originalPrice ?? null,
     installment_text: offer.installmentText ?? null,
@@ -185,6 +189,7 @@ function mapBackendImportedProduct(payload: BackendAdminProductImport): AdminImp
   return {
     provider: payload.provider,
     sourceUrl: payload.source_url,
+    resolvedUrl: payload.resolved_url,
     storeId: payload.store_code,
     externalId: payload.external_id ?? undefined,
     name: payload.name ?? undefined,
@@ -195,15 +200,16 @@ function mapBackendImportedProduct(payload: BackendAdminProductImport): AdminImp
     thumbnailUrl: payload.thumbnail_url ?? undefined,
     sellerName: payload.seller_name ?? undefined,
     affiliateUrl: payload.affiliate_url,
+    landingUrl: payload.landing_url,
     price: payload.price == null ? undefined : Number(payload.price),
     originalPrice: payload.original_price == null ? undefined : Number(payload.original_price)
   };
 }
 
 export const adminProductsService = {
-  async createProduct(item: CatalogItem): Promise<ApiResponse<CatalogItem>> {
+  async createProduct(item: CatalogItem, draft?: AdminProductDraft): Promise<ApiResponse<CatalogItem>> {
     try {
-      const payload = toWritePayload(item);
+      const payload = toWritePayload(item, draft);
       const response = await apiClient.post<BackendCatalogItem>("/admin/products", payload);
 
       if (!response.ok) {
@@ -230,9 +236,9 @@ export const adminProductsService = {
     }
   },
 
-  async updateProduct(productId: string, item: CatalogItem): Promise<ApiResponse<CatalogItem>> {
+  async updateProduct(productId: string, item: CatalogItem, draft?: AdminProductDraft): Promise<ApiResponse<CatalogItem>> {
     try {
-      const payload = toWritePayload(item);
+      const payload = toWritePayload(item, draft);
       const response = await apiClient.patch<BackendCatalogItem>(
         `/admin/products/${encodeURIComponent(productId)}`,
         payload

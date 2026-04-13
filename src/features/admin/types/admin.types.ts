@@ -12,6 +12,7 @@ export type AdminProductDraft = {
   storeId: "amazon" | "mercado-livre" | "shopee";
   sellerName: string;
   affiliateUrl: string;
+  landingUrl?: string;
   price: string;
   originalPrice: string;
   installmentText: string;
@@ -22,6 +23,7 @@ export type AdminProductDraft = {
 export type AdminImportedProduct = {
   provider: string;
   sourceUrl: string;
+  resolvedUrl: string;
   storeId: "amazon" | "mercado-livre" | "shopee";
   externalId?: string;
   name?: string;
@@ -32,6 +34,7 @@ export type AdminImportedProduct = {
   thumbnailUrl?: string;
   sellerName?: string;
   affiliateUrl?: string;
+  landingUrl?: string;
   price?: number;
   originalPrice?: number;
 };
