@@ -104,15 +104,16 @@ class AdminProductImportService:
                 continue
             except Exception:
                 resolved_url = AdminProductImportService._resolve_url_for_diagnostics(url)
+                status, message = AdminProductImportService._classify_residual_import_failure(resolved_url)
                 results.append(
                     AdminProductImportBatchItemRead(
                         url=url,
                         resolved_url=resolved_url,
-                        status="extraction_failed",
-                        message="Unexpected import failure for URL",
+                        status=status,
+                        message=message,
                     )
                 )
-                counters["extraction_failed"] += 1
+                counters[AdminProductImportService._counter_key_for_status(status)] += 1
                 continue
 
             duplicate = AdminProductImportService._find_duplicate(db, imported)
@@ -318,6 +319,8 @@ class AdminProductImportService:
             try:
                 candidate_html, candidate_resolved_url = AdminProductImportService._fetch_html_with_redirects(candidate)
             except BusinessRuleError:
+                continue
+            except Exception:
                 continue
 
             snapshots = AdminProductImportService._extract_structured_state_snapshots(candidate_html)
@@ -1044,6 +1047,13 @@ class AdminProductImportService:
             return "extraction_failed"
 
         return "invalid"
+
+    @staticmethod
+    def _classify_residual_import_failure(resolved_url: str | None) -> tuple[str, str]:
+        if resolved_url and AdminProductImportService._is_mercado_livre_social_page(resolved_url):
+            return "invalid", "redirect_resolved_non_product_page:social_without_product_url"
+
+        return "extraction_failed", "Unexpected import failure for URL"
 
     @staticmethod
     def _counter_key_for_status(status: str) -> str:
