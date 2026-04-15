@@ -40,6 +40,7 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
   const [batchInput, setBatchInput] = useState("");
   const [isBatchImporting, setIsBatchImporting] = useState(false);
   const [batchResult, setBatchResult] = useState<AdminBatchImportResult | null>(null);
+  const [sessionImportedProductIds, setSessionImportedProductIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!initialized) {
@@ -54,11 +55,6 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
   const editingItem = useMemo(
     () => items.find((item) => item.product.id === editingProductId) ?? null,
     [editingProductId, items]
-  );
-
-  const sortedItems = useMemo(
-    () => [...items].sort((first, second) => first.product.name.localeCompare(second.product.name, "pt-BR")),
-    [items]
   );
 
   const analyticsUnavailable = !initialDashboard.clickAnalytics || !initialDashboard.alertAnalytics;
@@ -105,6 +101,9 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
 
     upsertCatalogItem(response.data);
     setEditingProductId(null);
+    if (draft.externalId || draft.landingUrl) {
+      setSessionImportedProductIds((current) => [...new Set([...current, response.data.product.id])]);
+    }
 
     const message = isEditing ? "Produto atualizado com sucesso." : "Produto publicado com sucesso.";
     setCatalogFeedback({ type: "success", message });
@@ -121,6 +120,7 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
     }
 
     removeCatalogItem(productId);
+    setSessionImportedProductIds((current) => current.filter((id) => id !== productId));
 
     if (editingProductId === productId) {
       setEditingProductId(null);
@@ -186,6 +186,13 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
         upsertCatalogItem(entry.catalogItem);
       }
     });
+    const importedIds = response.data.results
+      .filter((entry) => (entry.status === "imported" || entry.status === "duplicate") && Boolean(entry.productId))
+      .map((entry) => entry.productId)
+      .filter((entry): entry is string => Boolean(entry));
+    if (importedIds.length) {
+      setSessionImportedProductIds((current) => [...new Set([...current, ...importedIds])]);
+    }
 
     setCatalogFeedback({
       type: "success",
@@ -350,7 +357,8 @@ export function AdminDashboard({ initialCatalog, initialDashboard }: AdminDashbo
           onCancel={() => setEditingProductId(null)}
         />
         <AdminProductTable
-          items={sortedItems}
+          items={items}
+          importedProductIds={sessionImportedProductIds}
           onEdit={(item) => {
             setCatalogFeedback(null);
             setEditingProductId(item.product.id);
