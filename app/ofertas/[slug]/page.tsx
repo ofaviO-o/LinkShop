@@ -5,7 +5,7 @@ import { catalogService } from "@/features/catalog/services/catalog.service";
 import { OfferList, offersService } from "@/features/offers";
 import { PriceWatchSettingsCard } from "@/features/price-alerts";
 import { ProductPriceHistory, ProductSummary } from "@/features/product";
-import { formatCurrency } from "@/shared/lib/format";
+import { formatPrice } from "@/shared/lib/format";
 import { getStoreDisplayName } from "@/shared/lib/store";
 import { SectionHeading } from "@/shared/ui/section-heading";
 
@@ -37,10 +37,11 @@ export async function generateMetadata({ params }: ProductOfferPageProps): Promi
 
   const item = response.data;
   const bestOffer = item.bestOffer;
-  const title = `${item.product.name}: compare ${item.offers.length} ofertas`;
+  const productName = item.product.name.trim() || "Produto";
+  const title = `${productName}: compare ${item.offers.length} ofertas`;
   const description = bestOffer
-    ? `Menor preco atual em ${getStoreDisplayName(bestOffer.storeId)} por ${formatCurrency(item.lowestPrice)}. Veja historico de preco e acompanhe futuras quedas.`
-    : item.product.description;
+    ? `Menor preco atual em ${getStoreDisplayName(bestOffer.storeId)} por ${formatPrice(item.lowestPrice)}. Veja historico de preco e acompanhe futuras quedas.`
+    : item.product.description || "Compare ofertas em diferentes lojas para encontrar a melhor opcao.";
 
   return {
     title,
@@ -88,15 +89,15 @@ export default async function ProductOfferPage({ params }: ProductOfferPageProps
             <div className="grid gap-2 rounded-[1.5rem] bg-white px-5 py-4 text-sm text-neutral-500 shadow-glow">
               <span>{offersResponse.data.length} ofertas encontradas</span>
               <span>
-                Melhor oferta: {bestOffer ? formatCurrency(bestOffer.price) : formatCurrency(item.lowestPrice)}
+                Melhor oferta: {bestOffer ? formatPrice(bestOffer.price) : formatPrice(item.lowestPrice)}
               </span>
-              <span>Menor preco: {formatCurrency(item.lowestPrice)}</span>
+              <span>Menor preco: {formatPrice(item.lowestPrice)}</span>
               {bestDiffersFromLowest && bestOffer ? (
-                <span>Diferenca: {formatCurrency(bestOffer.price - item.lowestPrice)}</span>
+                <span>Diferenca: {formatPrice(bestOffer.price - item.lowestPrice)}</span>
               ) : (
                 <span>Melhor oferta coincide com o menor preco.</span>
               )}
-              <span>Economia possivel: {formatCurrency(potentialSavings)}</span>
+              <span>Economia possivel: {formatPrice(potentialSavings)}</span>
             </div>
           }
         />

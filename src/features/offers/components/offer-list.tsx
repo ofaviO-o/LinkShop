@@ -1,6 +1,6 @@
 import type { Offer } from "@/features/product/types/offer.types";
 import { calculateDiscountPercentage } from "@/shared/lib/commerce";
-import { formatCurrency } from "@/shared/lib/format";
+import { formatPrice, isFinitePositiveNumber } from "@/shared/lib/format";
 import { getOfferRedirectHref } from "@/shared/lib/redirect";
 import { getAvailabilityLabel, getStoreDisplayName } from "@/shared/lib/store";
 
@@ -10,7 +10,8 @@ type OfferListProps = {
 };
 
 export function OfferList({ offers, bestOfferId }: OfferListProps) {
-  const lowestPrice = offers.length ? Math.min(...offers.map((offer) => offer.price)) : null;
+  const offerPrices = offers.map((offer) => offer.price).filter(isFinitePositiveNumber);
+  const lowestPrice = offerPrices.length ? Math.min(...offerPrices) : null;
   const orderedOffers = [...offers].sort((first, second) => {
     if (first.id === bestOfferId) {
       return -1;
@@ -20,7 +21,9 @@ export function OfferList({ offers, bestOfferId }: OfferListProps) {
       return 1;
     }
 
-      return first.price - second.price;
+    const firstPrice = isFinitePositiveNumber(first.price) ? first.price : Number.POSITIVE_INFINITY;
+    const secondPrice = isFinitePositiveNumber(second.price) ? second.price : Number.POSITIVE_INFINITY;
+    return firstPrice - secondPrice;
   });
 
   return (
@@ -29,6 +32,8 @@ export function OfferList({ offers, bestOfferId }: OfferListProps) {
         const isBestOffer = offer.id === bestOfferId;
         const isLowestPrice = lowestPrice !== null && offer.price === lowestPrice;
         const discount = calculateDiscountPercentage(offer.price, offer.originalPrice);
+        const offerTitle = offer.title.trim() || "Oferta sem titulo";
+        const sellerName = offer.sellerName.trim() || "Loja parceira";
 
         return (
           <article
@@ -58,23 +63,23 @@ export function OfferList({ offers, bestOfferId }: OfferListProps) {
                 </div>
 
                 <div>
-                  <h3 className="font-display text-2xl">{offer.title}</h3>
-                  <p className="mt-1 text-sm text-neutral-500">Vendido por {offer.sellerName}</p>
+                  <h3 className="font-display text-2xl line-clamp-2" title={offerTitle}>{offerTitle}</h3>
+                  <p className="mt-1 text-sm text-neutral-500">Vendido por {sellerName}</p>
                 </div>
 
                 <div className="grid gap-1 text-sm text-neutral-500">
                   <span>{offer.installmentText ?? "Pagamento a vista"}</span>
-                  <span>Frete: {offer.shippingCost ? formatCurrency(offer.shippingCost) : "Consultar na loja"}</span>
-                  {offer.rankingReason ? <span>{offer.rankingReason}</span> : null}
+                  <span>Frete: {offer.shippingCost != null ? formatPrice(offer.shippingCost) : "Consultar na loja"}</span>
+                  {offer.rankingReason ? <span className="line-clamp-2">{offer.rankingReason}</span> : null}
                 </div>
               </div>
 
               <div className="grid gap-3 md:min-w-[240px] md:justify-items-end">
                 <div className="text-right">
                   <div className="flex items-end justify-end gap-3">
-                    <strong className="font-display text-3xl">{formatCurrency(offer.price)}</strong>
+                    <strong className="font-display text-3xl">{formatPrice(offer.price)}</strong>
                     {offer.originalPrice ? (
-                      <span className="text-sm text-neutral-400 line-through">{formatCurrency(offer.originalPrice)}</span>
+                      <span className="text-sm text-neutral-400 line-through">{formatPrice(offer.originalPrice, "")}</span>
                     ) : null}
                   </div>
                   <p className="mt-2 text-sm text-neutral-500">

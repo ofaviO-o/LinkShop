@@ -4,7 +4,7 @@ import { CatalogFilters } from "@/features/catalog/components/catalog-filters";
 import { CatalogGrid } from "@/features/catalog/components/catalog-grid";
 import { CatalogPagination } from "@/features/catalog/components/catalog-pagination";
 import { HomeSearchHero } from "@/features/catalog/components/home-search-hero";
-import { formatCurrency } from "@/shared/lib/format";
+import { formatPrice, isFinitePositiveNumber } from "@/shared/lib/format";
 import { SectionHeading } from "@/shared/ui/section-heading";
 
 type CatalogSearchViewProps = {
@@ -29,7 +29,8 @@ export function CatalogSearchView({ result, buildPageHref }: CatalogSearchViewPr
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
   const firstItem = result.total === 0 ? 0 : (result.page - 1) * result.pageSize + 1;
   const lastItem = Math.min(result.total, result.page * result.pageSize);
-  const lowestResultPrice = result.items.length ? Math.min(...result.items.map((item) => item.lowestPrice)) : null;
+  const validPrices = result.items.map((item) => item.lowestPrice).filter(isFinitePositiveNumber);
+  const lowestResultPrice = validPrices.length ? Math.min(...validPrices) : null;
 
   return (
     <>
@@ -46,7 +47,7 @@ export function CatalogSearchView({ result, buildPageHref }: CatalogSearchViewPr
               <span>
                 Exibindo {firstItem} a {lastItem}
               </span>
-              {lowestResultPrice !== null ? <span>A partir de {formatCurrency(lowestResultPrice)}</span> : null}
+              {lowestResultPrice !== null ? <span>A partir de {formatPrice(lowestResultPrice)}</span> : null}
             </div>
           }
         />
