@@ -3,7 +3,7 @@ import re
 from decimal import Decimal, InvalidOperation
 from html import unescape
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, unquote, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 from sqlalchemy.exc import IntegrityError
@@ -48,6 +48,11 @@ class AdminProductImportService:
                 "Provider not supported yet. Use a Mercado Livre product URL.",
                 code="IMPORT_PROVIDER_NOT_SUPPORTED",
             )
+
+        html, resolved_url = AdminProductImportService._resolve_mercado_livre_social_destination(
+            resolved_url=resolved_url,
+            html=html,
+        )
 
         return AdminProductImportService._import_mercado_livre(
             source_url=source_url,
@@ -295,6 +300,116 @@ class AdminProductImportService:
             return resolved_url
         except Exception:
             return None
+
+    @staticmethod
+    def _resolve_mercado_livre_social_destination(*, resolved_url: str, html: str) -> tuple[str, str]:
+        if not AdminProductImportService._is_mercado_livre_social_page(resolved_url):
+            return html, resolved_url
+
+        candidates = AdminProductImportService._extract_mercado_livre_product_candidates(
+            source_url=resolved_url,
+            html=html,
+        )
+
+        for candidate in candidates:
+            if not AdminProductImportService._url_matches_mercado_livre_host(candidate):
+                continue
+
+            try:
+                candidate_html, candidate_resolved_url = AdminProductImportService._fetch_html_with_redirects(candidate)
+            except BusinessRuleError:
+                continue
+
+            snapshots = AdminProductImportService._extract_structured_state_snapshots(candidate_html)
+            if AdminProductImportService._looks_like_mercado_livre_product_page(
+                candidate_resolved_url,
+                candidate_html,
+                snapshots,
+            ):
+                return candidate_html, candidate_resolved_url
+
+        raise BusinessRuleError(
+            "redirect_resolved_non_product_page:social_without_product_url",
+            code="IMPORT_REDIRECT_RESOLVED_NON_PRODUCT_PAGE",
+            status_code=400,
+        )
+
+    @staticmethod
+    def _is_mercado_livre_social_page(url: str) -> bool:
+        parsed = urlparse(url)
+        return AdminProductImportService._url_matches_mercado_livre_host(url) and parsed.path.lower().startswith("/social/")
+
+    @staticmethod
+    def _extract_mercado_livre_product_candidates(*, source_url: str, html: str) -> list[str]:
+        candidates: list[str] = []
+
+        parsed_source = urlparse(source_url)
+        query_params = parse_qs(parsed_source.query)
+        for key in ("url", "target", "redirect", "redirect_url", "destination", "dest", "to", "u", "href"):
+            for value in query_params.get(key, []):
+                normalized = AdminProductImportService._normalize_candidate_url(value, source_url)
+                if normalized:
+                    candidates.append(normalized)
+
+        meta = AdminProductImportService._extract_meta_tags(html)
+        canonical_url = AdminProductImportService._extract_canonical_url(html, meta)
+        for value in (canonical_url, meta.get("og:url"), meta.get("twitter:url")):
+            normalized = AdminProductImportService._normalize_candidate_url(value, source_url)
+            if normalized:
+                candidates.append(normalized)
+
+        for match in re.finditer(r'<a[^>]+href=["\']([^"\']+)["\']', html, flags=re.IGNORECASE):
+            normalized = AdminProductImportService._normalize_candidate_url(match.group(1), source_url)
+            if normalized:
+                candidates.append(normalized)
+
+        for match in re.finditer(r'https?://[^"\s\'<>]+', html, flags=re.IGNORECASE):
+            normalized = AdminProductImportService._normalize_candidate_url(match.group(0), source_url)
+            if normalized:
+                candidates.append(normalized)
+
+        for match in re.finditer(r'https?:\\?/\\?/[^"\s\'<>]+', html, flags=re.IGNORECASE):
+            normalized = AdminProductImportService._normalize_candidate_url(match.group(0), source_url)
+            if normalized:
+                candidates.append(normalized)
+
+        deduplicated: list[str] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            if (
+                AdminProductImportService._url_matches_mercado_livre_host(candidate)
+                and AdminProductImportService._looks_like_mercado_livre_product_path(candidate)
+            ):
+                deduplicated.append(candidate)
+
+        return deduplicated
+
+    @staticmethod
+    def _normalize_candidate_url(value: str | None, base_url: str) -> str | None:
+        if not value:
+            return None
+
+        cleaned = unescape(unquote(value.strip()))
+        if not cleaned:
+            return None
+
+        cleaned = cleaned.replace("\\/", "/")
+
+        if cleaned.startswith("//"):
+            cleaned = f"https:{cleaned}"
+        elif cleaned.startswith("/"):
+            cleaned = urljoin(base_url, cleaned)
+        elif not cleaned.startswith(("http://", "https://")):
+            return None
+
+        parsed = urlparse(cleaned)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return None
+
+        return cleaned
 
     @staticmethod
     def _import_mercado_livre(*, source_url: str, resolved_url: str, html: str) -> AdminProductImportRead:
