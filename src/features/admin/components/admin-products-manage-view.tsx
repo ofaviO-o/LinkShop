@@ -101,12 +101,6 @@ export function AdminProductsManageView({ initialCatalog }: AdminProductsManageV
 
       <div className="mb-6 flex flex-wrap gap-3">
         <Link
-          href="/admin/produtos/novo"
-          className="inline-flex items-center rounded-full bg-coral px-5 py-3 text-sm font-semibold text-white"
-        >
-          Cadastro manual
-        </Link>
-        <Link
           href="/admin/produtos/importar"
           className="inline-flex items-center rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white"
         >

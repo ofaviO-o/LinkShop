@@ -1,10 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 
 import type { CatalogItem } from "@/features/catalog/types/catalog.types";
 import type { StoreId } from "@/features/product/types/store.types";
-import { formatCurrency, normalizeText } from "@/shared/lib/format";
+import { formatCurrency, getSafeImageUrl, normalizeText } from "@/shared/lib/format";
 
 type AdminProductTableProps = {
   items: CatalogItem[];
@@ -43,8 +44,10 @@ export function AdminProductTable({ items, importedProductIds = [], onEdit, onDe
   const [storeFilter, setStoreFilter] = useState<StoreId | "all">("all");
   const [sortBy, setSortBy] = useState<AdminTableSort>("recent");
   const [expandedDescriptionIds, setExpandedDescriptionIds] = useState<string[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
 
   const importedSet = useMemo(() => new Set(importedProductIds), [importedProductIds]);
+  const selectedSet = useMemo(() => new Set(selectedProductIds), [selectedProductIds]);
 
   const availableStores = useMemo(() => {
     const storeSet = new Set<StoreId>();
@@ -76,6 +79,16 @@ export function AdminProductTable({ items, importedProductIds = [], onEdit, onDe
       return getMostRecentSyncTimestamp(second) - getMostRecentSyncTimestamp(first);
     });
   }, [items, searchQuery, sortBy, storeFilter]);
+  const visibleProductIds = useMemo(
+    () => filteredItems.map((item) => item.product.id),
+    [filteredItems]
+  );
+  const allVisibleSelected = useMemo(
+    () =>
+      visibleProductIds.length > 0 &&
+      visibleProductIds.every((productId) => selectedSet.has(productId)),
+    [selectedSet, visibleProductIds]
+  );
 
   function toggleDescription(productId: string) {
     setExpandedDescriptionIds((current) =>
@@ -83,6 +96,24 @@ export function AdminProductTable({ items, importedProductIds = [], onEdit, onDe
         ? current.filter((id) => id !== productId)
         : [...current, productId]
     );
+  }
+
+  function toggleProductSelection(productId: string) {
+    setSelectedProductIds((current) =>
+      current.includes(productId)
+        ? current.filter((id) => id !== productId)
+        : [...current, productId]
+    );
+  }
+
+  function toggleSelectAllVisible(checked: boolean) {
+    setSelectedProductIds((current) => {
+      if (checked) {
+        return [...new Set([...current, ...visibleProductIds])];
+      }
+
+      return current.filter((id) => !visibleProductIds.includes(id));
+    });
   }
 
   return (
@@ -93,9 +124,18 @@ export function AdminProductTable({ items, importedProductIds = [], onEdit, onDe
           <p className="mt-1 text-sm text-neutral-500">
             {filteredItems.length} de {items.length} itens visiveis no catalogo
           </p>
+          <p className="mt-1 text-sm text-neutral-500">Selecionados: {selectedProductIds.length}</p>
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <label className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={(event) => toggleSelectAllVisible(event.target.checked)}
+            />
+            Selecionar todos
+          </label>
           <input
             type="search"
             value={searchQuery}
@@ -129,75 +169,108 @@ export function AdminProductTable({ items, importedProductIds = [], onEdit, onDe
 
       <div className="grid gap-4">
         {filteredItems.length ? (
-          filteredItems.map((item) => (
-            <article key={item.product.id} className="rounded-[1.5rem] border border-black/5 bg-white p-5">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                <div className="md:min-h-[190px] md:flex md:flex-col md:justify-between">
-                  <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                    {item.storeIds.map((storeId) => (
-                      <span key={storeId} className="rounded-full bg-lagoon/10 px-3 py-1 text-lagoon">
-                        {getStoreLabel(storeId)}
-                      </span>
-                    ))}
-                    <span className="rounded-full bg-black/5 px-3 py-1 text-neutral-700">{item.product.category}</span>
-                    {item.offers.some((offer) => offer.isFeatured) ? (
-                      <span className="rounded-full bg-coral/10 px-3 py-1 text-coral">Destaque</span>
-                    ) : null}
-                    {importedSet.has(item.product.id) ? (
-                      <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700">Importado na sessao</span>
-                    ) : null}
-                  </div>
-                  <h3 className="mt-3 max-w-3xl font-display text-2xl leading-tight">{item.product.name}</h3>
+          filteredItems.map((item) => {
+            const thumbnailUrl = getSafeImageUrl(item.product.thumbnailUrl);
 
-                  <div className="mt-2 max-w-3xl">
-                    <p
-                      className={`text-sm leading-7 text-neutral-600 ${
-                        expandedDescriptionIds.includes(item.product.id) ? "" : "line-clamp-2"
-                      }`}
-                    >
-                      {item.product.description}
-                    </p>
-                    {item.product.description.length > 140 ? (
+            return (
+              <article
+                key={item.product.id}
+                className={`rounded-[1.5rem] border bg-white p-5 ${
+                  selectedSet.has(item.product.id) ? "border-coral/30" : "border-black/5"
+                }`}
+              >
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div className="flex items-start gap-3 md:min-w-[180px]">
+                    <input
+                      type="checkbox"
+                      checked={selectedSet.has(item.product.id)}
+                      onChange={() => toggleProductSelection(item.product.id)}
+                      className="mt-1"
+                    />
+                    <div className="relative h-16 w-16 overflow-hidden rounded-xl bg-black/5">
+                      {thumbnailUrl ? (
+                        <Image
+                          src={thumbnailUrl}
+                          alt={item.product.name}
+                          fill
+                          sizes="64px"
+                          className="object-contain p-1"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[10px] text-neutral-500">
+                          Sem imagem
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex-1 md:min-h-[190px] md:flex md:flex-col md:justify-between">
+                    <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                      {item.storeIds.map((storeId) => (
+                        <span key={storeId} className="rounded-full bg-lagoon/10 px-3 py-1 text-lagoon">
+                          {getStoreLabel(storeId)}
+                        </span>
+                      ))}
+                      <span className="rounded-full bg-black/5 px-3 py-1 text-neutral-700">{item.product.category}</span>
+                      {item.offers.some((offer) => offer.isFeatured) ? (
+                        <span className="rounded-full bg-coral/10 px-3 py-1 text-coral">Destaque</span>
+                      ) : null}
+                      {importedSet.has(item.product.id) ? (
+                        <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700">Importado na sessao</span>
+                      ) : null}
+                    </div>
+                    <h3 className="mt-3 max-w-3xl font-display text-2xl leading-tight">{item.product.name}</h3>
+
+                    <div className="mt-2 max-w-3xl">
+                      <p
+                        className={`text-sm leading-7 text-neutral-600 ${
+                          expandedDescriptionIds.includes(item.product.id) ? "" : "line-clamp-2"
+                        }`}
+                      >
+                        {item.product.description}
+                      </p>
+                      {item.product.description.length > 140 ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleDescription(item.product.id)}
+                          className="mt-1 text-xs font-semibold text-coral hover:underline"
+                        >
+                          {expandedDescriptionIds.includes(item.product.id) ? "Ver menos" : "Ver mais"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:min-w-[210px] md:justify-items-end">
+                    <div className="rounded-[1.25rem] bg-orange-50 px-4 py-3 text-right">
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-coral">Preco</p>
+                      <strong className="font-display text-3xl text-ink">{formatCurrency(item.lowestPrice)}</strong>
+                      {item.bestDiscountPercentage ? (
+                        <p className="text-xs font-semibold text-lagoon">{item.bestDiscountPercentage}% OFF</p>
+                      ) : null}
+                    </div>
+
+                    <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => toggleDescription(item.product.id)}
-                        className="mt-1 text-xs font-semibold text-coral hover:underline"
+                        onClick={() => onEdit(item)}
+                        className="rounded-full bg-lagoon/10 px-4 py-2 text-sm font-semibold text-lagoon"
                       >
-                        {expandedDescriptionIds.includes(item.product.id) ? "Ver menos" : "Ver mais"}
+                        Editar
                       </button>
-                    ) : null}
+                      <button
+                        type="button"
+                        onClick={() => onDelete(item.product.id)}
+                        className="rounded-full bg-coral/10 px-4 py-2 text-sm font-semibold text-coral"
+                      >
+                        Excluir
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                <div className="grid gap-3 md:min-w-[210px] md:justify-items-end">
-                  <div className="rounded-[1.25rem] bg-orange-50 px-4 py-3 text-right">
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-coral">Preco</p>
-                    <strong className="font-display text-3xl text-ink">{formatCurrency(item.lowestPrice)}</strong>
-                    {item.bestDiscountPercentage ? (
-                      <p className="text-xs font-semibold text-lagoon">{item.bestDiscountPercentage}% OFF</p>
-                    ) : null}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onEdit(item)}
-                      className="rounded-full bg-lagoon/10 px-4 py-2 text-sm font-semibold text-lagoon"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDelete(item.product.id)}
-                      className="rounded-full bg-coral/10 px-4 py-2 text-sm font-semibold text-coral"
-                    >
-                      Excluir
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </article>
-          ))
+              </article>
+            );
+          })
         ) : (
           <div className="rounded-[1.5rem] border border-dashed border-black/10 bg-black/5 p-6 text-sm text-neutral-600">
             Nenhum item encontrado com os filtros atuais.
