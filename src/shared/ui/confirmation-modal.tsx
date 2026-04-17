@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 type ConfirmationModalProps = {
   open: boolean;
@@ -25,19 +26,38 @@ export function ConfirmationModal({
   onCancel,
   children
 }: ConfirmationModalProps) {
-  if (!open) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  if (!open || !mounted) {
     return null;
   }
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed left-0 top-0 z-[9999] flex h-screen w-screen items-center justify-center p-4">
       <button
         type="button"
         aria-label="Fechar modal"
         onClick={onCancel}
-        className="absolute inset-0 bg-black/50"
+        className="absolute left-0 top-0 h-full w-full bg-black/50"
       />
-      <div className="relative z-[71] w-full max-w-2xl rounded-[1.5rem] border border-black/10 bg-white p-6 shadow-glow">
+      <div className="relative z-[10000] w-full max-w-2xl rounded-[1.5rem] border border-black/10 bg-white p-6 shadow-glow">
         <h3 className="font-display text-3xl text-ink">{title}</h3>
         {description ? <p className="mt-2 text-sm text-neutral-600">{description}</p> : null}
 
@@ -62,6 +82,7 @@ export function ConfirmationModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
