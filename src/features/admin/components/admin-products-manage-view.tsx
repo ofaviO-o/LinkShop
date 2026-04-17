@@ -72,24 +72,6 @@ export function AdminProductsManageView({ initialCatalog }: AdminProductsManageV
     return { ok: true, message };
   }
 
-  async function handleDeleteCatalogItem(productId: string) {
-    setFeedback(null);
-    const response = await adminProductsService.deleteProduct(productId);
-
-    if (!response.ok) {
-      setFeedback({ type: "error", message: response.error.message });
-      return;
-    }
-
-    removeCatalogItem(productId);
-
-    if (editingProductId === productId) {
-      setEditingProductId(null);
-    }
-
-    setFeedback({ type: "success", message: "Produto removido com sucesso." });
-  }
-
   function handleEditManyCatalogItems(productIds: string[]) {
     const [firstProductId] = productIds;
     if (!firstProductId) {
@@ -210,13 +192,6 @@ export function AdminProductsManageView({ initialCatalog }: AdminProductsManageV
           />
           <AdminProductTable
             items={items}
-            onEdit={(item) => {
-              setFeedback(null);
-              setEditingProductId(item.product.id);
-            }}
-            onDelete={(productId) => {
-              void handleDeleteCatalogItem(productId);
-            }}
             onEditMany={handleEditManyCatalogItems}
             onDeleteMany={handleDeleteManyCatalogItems}
           />
@@ -225,13 +200,6 @@ export function AdminProductsManageView({ initialCatalog }: AdminProductsManageV
         <div className="space-y-4">
           <AdminProductTable
             items={items}
-            onEdit={(item) => {
-              setFeedback(null);
-              setEditingProductId(item.product.id);
-            }}
-            onDelete={(productId) => {
-              void handleDeleteCatalogItem(productId);
-            }}
             onEditMany={handleEditManyCatalogItems}
             onDeleteMany={handleDeleteManyCatalogItems}
           />

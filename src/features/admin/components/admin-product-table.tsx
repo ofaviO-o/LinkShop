@@ -10,13 +10,12 @@ import { formatCurrency, getSafeImageUrl, normalizeText } from "@/shared/lib/for
 type AdminProductTableProps = {
   items: CatalogItem[];
   importedProductIds?: string[];
-  onEdit: (item: CatalogItem) => void;
-  onDelete: (productId: string) => void;
   onEditMany: (productIds: string[]) => void;
   onDeleteMany: (productIds: string[]) => Promise<void> | void;
 };
 
 type AdminTableSort = "recent" | "name" | "price";
+type SelectionAction = "edit" | "delete";
 
 function getStoreLabel(storeId: StoreId) {
   switch (storeId) {
@@ -65,23 +64,17 @@ function TrashIcon() {
   );
 }
 
-export function AdminProductTable({
-  items,
-  importedProductIds = [],
-  onEdit,
-  onDelete,
-  onEditMany,
-  onDeleteMany
-}: AdminProductTableProps) {
+export function AdminProductTable({ items, importedProductIds = [], onEditMany, onDeleteMany }: AdminProductTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [storeFilter, setStoreFilter] = useState<StoreId | "all">("all");
   const [sortBy, setSortBy] = useState<AdminTableSort>("recent");
   const [expandedDescriptionIds, setExpandedDescriptionIds] = useState<string[]>([]);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
-  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectionAction, setSelectionAction] = useState<SelectionAction | null>(null);
 
   const importedSet = useMemo(() => new Set(importedProductIds), [importedProductIds]);
   const selectedSet = useMemo(() => new Set(selectedProductIds), [selectedProductIds]);
+  const selectionMode = selectionAction !== null;
 
   const availableStores = useMemo(() => {
     const storeSet = new Set<StoreId>();
@@ -142,6 +135,16 @@ export function AdminProductTable({
     });
   }
 
+  function activateSelection(action: SelectionAction) {
+    setSelectionAction((current) => (current === action ? null : action));
+    setSelectedProductIds([]);
+  }
+
+  function cancelSelection() {
+    setSelectionAction(null);
+    setSelectedProductIds([]);
+  }
+
   function handleCardSelectionToggle(productId: string) {
     if (!selectionMode) {
       return;
@@ -150,7 +153,7 @@ export function AdminProductTable({
     toggleProductSelection(productId);
   }
 
-  function handleBulkEdit() {
+  function handleConfirmEdit() {
     if (!selectedProductIds.length) {
       return;
     }
@@ -165,9 +168,10 @@ export function AdminProductTable({
     }
 
     onEditMany(selectedProductIds);
+    cancelSelection();
   }
 
-  async function handleBulkDelete() {
+  async function handleConfirmDelete() {
     if (!selectedProductIds.length) {
       return;
     }
@@ -179,9 +183,8 @@ export function AdminProductTable({
       return;
     }
 
-    const selectedIdsSet = new Set(selectedProductIds);
     await onDeleteMany(selectedProductIds);
-    setSelectedProductIds((current) => current.filter((productId) => !selectedIdsSet.has(productId)));
+    cancelSelection();
   }
 
   return (
@@ -192,58 +195,40 @@ export function AdminProductTable({
           <p className="mt-1 text-sm text-neutral-500">
             {filteredItems.length} de {items.length} itens visiveis no catalogo
           </p>
-          {selectionMode ? <p className="mt-1 text-sm text-neutral-500">Selecionados: {selectedProductIds.length}</p> : null}
+          {selectionMode ? (
+            <p className="mt-1 text-sm text-neutral-500">
+              Modo {selectionAction === "edit" ? "edicao" : "exclusao"} ativo. Selecionados: {selectedProductIds.length}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {selectionMode ? (
-            <>
-              {selectedProductIds.length ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void handleBulkEdit()}
-                    className="inline-flex items-center rounded-full bg-lagoon/10 px-4 py-2 text-sm font-semibold text-lagoon hover:bg-lagoon/20"
-                  >
-                    Editar selecionados
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleBulkDelete()}
-                    className="inline-flex items-center rounded-full bg-coral/10 px-4 py-2 text-sm font-semibold text-coral hover:bg-coral/20"
-                  >
-                    Excluir selecionados
-                  </button>
-                </>
-              ) : null}
-              <label className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700">
-                <input
-                  type="checkbox"
-                  checked={allVisibleSelected}
-                  onChange={(event) => toggleSelectAllVisible(event.target.checked)}
-                />
-                Selecionar todos
-              </label>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectionMode(false);
-                  setSelectedProductIds([]);
-                }}
-                className="inline-flex items-center rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-black/5"
-              >
-                Cancelar selecao
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setSelectionMode(true)}
-              className="inline-flex items-center rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-black/5"
-            >
-              Selecionar produtos
-            </button>
-          )}
+          <button
+            type="button"
+            aria-label="Ativar selecao para editar"
+            title="Selecionar para editar"
+            onClick={() => activateSelection("edit")}
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition ${
+              selectionAction === "edit"
+                ? "border-lagoon/30 bg-lagoon/10 text-lagoon"
+                : "border-black/10 bg-white text-neutral-700 hover:bg-black/5"
+            }`}
+          >
+            <PencilIcon />
+          </button>
+          <button
+            type="button"
+            aria-label="Ativar selecao para excluir"
+            title="Selecionar para excluir"
+            onClick={() => activateSelection("delete")}
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition ${
+              selectionAction === "delete"
+                ? "border-coral/30 bg-coral/10 text-coral"
+                : "border-black/10 bg-white text-neutral-700 hover:bg-black/5"
+            }`}
+          >
+            <TrashIcon />
+          </button>
           <input
             type="search"
             value={searchQuery}
@@ -275,6 +260,38 @@ export function AdminProductTable({
         </div>
       </div>
 
+      {selectionMode ? (
+        <div className="mb-4 flex flex-wrap gap-2 rounded-[1rem] border border-black/10 bg-black/5 p-3">
+          <label className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={(event) => toggleSelectAllVisible(event.target.checked)}
+            />
+            Selecionar todos
+          </label>
+          <button
+            type="button"
+            onClick={() => (selectionAction === "edit" ? handleConfirmEdit() : void handleConfirmDelete())}
+            disabled={!selectedProductIds.length}
+            className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
+              selectionAction === "edit"
+                ? "bg-lagoon/10 text-lagoon hover:bg-lagoon/20"
+                : "bg-coral/10 text-coral hover:bg-coral/20"
+            }`}
+          >
+            {selectionAction === "edit" ? "Confirmar edicao" : "Confirmar exclusao"}
+          </button>
+          <button
+            type="button"
+            onClick={cancelSelection}
+            className="inline-flex items-center rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-black/5"
+          >
+            Cancelar selecao
+          </button>
+        </div>
+      ) : null}
+
       <div className="grid gap-4">
         {filteredItems.length ? (
           filteredItems.map((item) => {
@@ -288,36 +305,6 @@ export function AdminProductTable({
                 } ${selectionMode ? "cursor-pointer" : ""}`}
                 onClick={() => handleCardSelectionToggle(item.product.id)}
               >
-                <div className="mb-3 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    aria-label={`Editar ${item.product.name}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onEdit(item);
-                    }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-lagoon/10 text-lagoon hover:bg-lagoon/20"
-                  >
-                    <PencilIcon />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Excluir ${item.product.name}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      const shouldDelete = window.confirm(
-                        `Deseja excluir "${item.product.name}"?\nEssa acao nao pode ser desfeita.`
-                      );
-                      if (shouldDelete) {
-                        onDelete(item.product.id);
-                      }
-                    }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-coral/10 text-coral hover:bg-coral/20"
-                  >
-                    <TrashIcon />
-                  </button>
-                </div>
-
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div className="flex items-start gap-3 md:min-w-[200px]">
                     {selectionMode ? (
