@@ -42,6 +42,7 @@ export function AdminProductTable({ items, importedProductIds = [], onEdit, onDe
   const [searchQuery, setSearchQuery] = useState("");
   const [storeFilter, setStoreFilter] = useState<StoreId | "all">("all");
   const [sortBy, setSortBy] = useState<AdminTableSort>("recent");
+  const [expandedDescriptionIds, setExpandedDescriptionIds] = useState<string[]>([]);
 
   const importedSet = useMemo(() => new Set(importedProductIds), [importedProductIds]);
 
@@ -75,6 +76,14 @@ export function AdminProductTable({ items, importedProductIds = [], onEdit, onDe
       return getMostRecentSyncTimestamp(second) - getMostRecentSyncTimestamp(first);
     });
   }, [items, searchQuery, sortBy, storeFilter]);
+
+  function toggleDescription(productId: string) {
+    setExpandedDescriptionIds((current) =>
+      current.includes(productId)
+        ? current.filter((id) => id !== productId)
+        : [...current, productId]
+    );
+  }
 
   return (
     <div className="glass-panel p-6">
@@ -123,7 +132,7 @@ export function AdminProductTable({ items, importedProductIds = [], onEdit, onDe
           filteredItems.map((item) => (
             <article key={item.product.id} className="rounded-[1.5rem] border border-black/5 bg-white p-5">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                <div>
+                <div className="md:min-h-[190px] md:flex md:flex-col md:justify-between">
                   <div className="flex flex-wrap gap-2 text-xs font-semibold">
                     {item.storeIds.map((storeId) => (
                       <span key={storeId} className="rounded-full bg-lagoon/10 px-3 py-1 text-lagoon">
@@ -138,29 +147,53 @@ export function AdminProductTable({ items, importedProductIds = [], onEdit, onDe
                       <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700">Importado na sessao</span>
                     ) : null}
                   </div>
-                  <h3 className="mt-3 font-display text-2xl">{item.product.name}</h3>
-                  <p className="mt-2 max-w-3xl text-sm leading-7 text-neutral-600">{item.product.description}</p>
-                  <p className="mt-3 text-sm text-neutral-500">
-                    {formatCurrency(item.lowestPrice)}
-                    {item.bestDiscountPercentage ? ` • ${item.bestDiscountPercentage}% OFF` : ""}
-                  </p>
+                  <h3 className="mt-3 max-w-3xl font-display text-2xl leading-tight">{item.product.name}</h3>
+
+                  <div className="mt-2 max-w-3xl">
+                    <p
+                      className={`text-sm leading-7 text-neutral-600 ${
+                        expandedDescriptionIds.includes(item.product.id) ? "" : "line-clamp-2"
+                      }`}
+                    >
+                      {item.product.description}
+                    </p>
+                    {item.product.description.length > 140 ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleDescription(item.product.id)}
+                        className="mt-1 text-xs font-semibold text-coral hover:underline"
+                      >
+                        {expandedDescriptionIds.includes(item.product.id) ? "Ver menos" : "Ver mais"}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
 
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => onEdit(item)}
-                    className="rounded-full bg-lagoon/10 px-4 py-2 text-sm font-semibold text-lagoon"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(item.product.id)}
-                    className="rounded-full bg-coral/10 px-4 py-2 text-sm font-semibold text-coral"
-                  >
-                    Excluir
-                  </button>
+                <div className="grid gap-3 md:min-w-[210px] md:justify-items-end">
+                  <div className="rounded-[1.25rem] bg-orange-50 px-4 py-3 text-right">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-coral">Preco</p>
+                    <strong className="font-display text-3xl text-ink">{formatCurrency(item.lowestPrice)}</strong>
+                    {item.bestDiscountPercentage ? (
+                      <p className="text-xs font-semibold text-lagoon">{item.bestDiscountPercentage}% OFF</p>
+                    ) : null}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(item)}
+                      className="rounded-full bg-lagoon/10 px-4 py-2 text-sm font-semibold text-lagoon"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(item.product.id)}
+                      className="rounded-full bg-coral/10 px-4 py-2 text-sm font-semibold text-coral"
+                    >
+                      Excluir
+                    </button>
+                  </div>
                 </div>
               </div>
             </article>

@@ -44,13 +44,19 @@ export function AdminProductsManageView({ initialCatalog }: AdminProductsManageV
     [editingProductId, items]
   );
 
-  async function handleSaveCatalogItem(item: CatalogItem, draft: AdminProductDraft): Promise<{ ok: boolean; message: string }> {
+  async function handleUpdateCatalogItem(
+    item: CatalogItem,
+    draft: AdminProductDraft
+  ): Promise<{ ok: boolean; message: string }> {
+    if (!editingItem) {
+      const message = "Selecione um item publicado para editar.";
+      setFeedback({ type: "error", message });
+      return { ok: false, message };
+    }
+
     setFeedback(null);
-    const isEditing = Boolean(editingItem);
-    const targetProductId = editingItem?.product.id ?? item.product.id;
-    const response = isEditing
-      ? await adminProductsService.updateProduct(targetProductId, item, draft)
-      : await adminProductsService.createProduct(item, draft);
+    const targetProductId = editingItem.product.id;
+    const response = await adminProductsService.updateProduct(targetProductId, item, draft);
 
     if (!response.ok) {
       const message = response.error.message;
@@ -61,7 +67,7 @@ export function AdminProductsManageView({ initialCatalog }: AdminProductsManageV
     upsertCatalogItem(response.data);
     setEditingProductId(null);
 
-    const message = isEditing ? "Produto atualizado com sucesso." : "Produto publicado com sucesso.";
+    const message = "Produto atualizado com sucesso.";
     setFeedback({ type: "success", message });
     return { ok: true, message };
   }
@@ -126,27 +132,59 @@ export function AdminProductsManageView({ initialCatalog }: AdminProductsManageV
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-        <ProductForm
-          item={editingItem}
-          onSave={handleSaveCatalogItem}
-          onCancel={() => setEditingProductId(null)}
-          showImportSection={false}
-          title={editingItem ? "Editar produto publicado" : "Publicar novo produto"}
-          description="Use este formulario para publicacao manual e ajustes finais em itens ja publicados."
-          submitLabel={editingItem ? "Salvar alteracoes" : "Publicar produto"}
-        />
-        <AdminProductTable
-          items={items}
-          onEdit={(item) => {
-            setFeedback(null);
-            setEditingProductId(item.product.id);
-          }}
-          onDelete={(productId) => {
-            void handleDeleteCatalogItem(productId);
-          }}
-        />
-      </div>
+      {editingItem ? (
+        <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+          <ProductForm
+            item={editingItem}
+            onSave={handleUpdateCatalogItem}
+            onCancel={() => setEditingProductId(null)}
+            showImportSection={false}
+            title="Editar produto publicado"
+            description="Ajuste apenas dados de itens ja publicados no catalogo."
+            submitLabel="Salvar alteracoes"
+          />
+          <AdminProductTable
+            items={items}
+            onEdit={(item) => {
+              setFeedback(null);
+              setEditingProductId(item.product.id);
+            }}
+            onDelete={(productId) => {
+              void handleDeleteCatalogItem(productId);
+            }}
+          />
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="rounded-[1.5rem] border border-black/10 bg-white p-5 text-sm text-neutral-600 shadow-glow">
+            Esta area e focada em produtos publicados. Para criar novos itens, use as rotas dedicadas:
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link href="/admin/produtos/novo" className="font-semibold text-coral">
+                /admin/produtos/novo
+              </Link>
+              <span>•</span>
+              <Link href="/admin/produtos/importar" className="font-semibold text-coral">
+                /admin/produtos/importar
+              </Link>
+              <span>•</span>
+              <Link href="/admin/produtos/revisar" className="font-semibold text-coral">
+                /admin/produtos/revisar
+              </Link>
+            </div>
+          </div>
+
+          <AdminProductTable
+            items={items}
+            onEdit={(item) => {
+              setFeedback(null);
+              setEditingProductId(item.product.id);
+            }}
+            onDelete={(productId) => {
+              void handleDeleteCatalogItem(productId);
+            }}
+          />
+        </div>
+      )}
     </section>
   );
 }
