@@ -94,7 +94,7 @@ export function CatalogFilters({ filters, categories, stores }: CatalogFiltersPr
   return (
     <aside className="glass-panel h-fit p-5 md:sticky md:top-28">
       <div className="mb-5 flex items-center justify-between">
-        <h3 className="font-display text-2xl">Filtros</h3>
+        <h3 className="font-display text-2xl">Refinar produtos</h3>
         <button type="button" onClick={resetFilters} className="text-sm font-medium text-coral">
           Limpar
         </button>
@@ -107,6 +107,17 @@ export function CatalogFilters({ filters, categories, stores }: CatalogFiltersPr
           applyFilters();
         }}
       >
+        <label className="grid gap-2 text-sm text-neutral-600">
+          Buscar por nome
+          <input
+            type="search"
+            value={draftFilters.query}
+            onChange={(event) => updateDraft("query", event.target.value)}
+            placeholder="Ex.: iPhone, monitor, air fryer"
+            className={fieldClassName}
+          />
+        </label>
+
         <label className="grid gap-2 text-sm text-neutral-600">
           Marketplace
           <select
@@ -139,47 +150,6 @@ export function CatalogFilters({ filters, categories, stores }: CatalogFiltersPr
           </select>
         </label>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="grid gap-2 text-sm text-neutral-600">
-            Preco minimo
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={toInputValue(draftFilters.minPrice)}
-              onChange={(event) => updateDraft("minPrice", event.target.value ? Number(event.target.value) : null)}
-              className={fieldClassName}
-            />
-          </label>
-
-          <label className="grid gap-2 text-sm text-neutral-600">
-            Preco maximo
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={toInputValue(draftFilters.maxPrice)}
-              onChange={(event) => updateDraft("maxPrice", event.target.value ? Number(event.target.value) : null)}
-              className={fieldClassName}
-            />
-          </label>
-        </div>
-
-        <label className="grid gap-2 text-sm text-neutral-600">
-          Desconto minimo
-          <select
-            value={String(draftFilters.minDiscount)}
-            onChange={(event) => updateDraft("minDiscount", Number(event.target.value))}
-            className={fieldClassName}
-          >
-            <option value="0">Qualquer</option>
-            <option value="10">10%+</option>
-            <option value="20">20%+</option>
-            <option value="30">30%+</option>
-            <option value="40">40%+</option>
-          </select>
-        </label>
-
         <label className="grid gap-2 text-sm text-neutral-600">
           Ordenar por
           <select
@@ -195,11 +165,57 @@ export function CatalogFilters({ filters, categories, stores }: CatalogFiltersPr
           </select>
         </label>
 
+        <details className="rounded-2xl border border-black/10 bg-white p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-neutral-700">Filtros avancados</summary>
+          <div className="mt-4 grid gap-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid gap-2 text-sm text-neutral-600">
+                Preco minimo
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={toInputValue(draftFilters.minPrice)}
+                  onChange={(event) => updateDraft("minPrice", event.target.value ? Number(event.target.value) : null)}
+                  className={fieldClassName}
+                />
+              </label>
+
+              <label className="grid gap-2 text-sm text-neutral-600">
+                Preco maximo
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={toInputValue(draftFilters.maxPrice)}
+                  onChange={(event) => updateDraft("maxPrice", event.target.value ? Number(event.target.value) : null)}
+                  className={fieldClassName}
+                />
+              </label>
+            </div>
+
+            <label className="grid gap-2 text-sm text-neutral-600">
+              Desconto minimo
+              <select
+                value={String(draftFilters.minDiscount)}
+                onChange={(event) => updateDraft("minDiscount", Number(event.target.value))}
+                className={fieldClassName}
+              >
+                <option value="0">Qualquer</option>
+                <option value="10">10%+</option>
+                <option value="20">20%+</option>
+                <option value="30">30%+</option>
+                <option value="40">40%+</option>
+              </select>
+            </label>
+          </div>
+        </details>
+
         <button
           type="submit"
           className="inline-flex items-center justify-center rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
         >
-          Aplicar filtros
+          Atualizar catalogo
         </button>
       </form>
     </aside>

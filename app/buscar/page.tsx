@@ -49,19 +49,82 @@ function parseFilters(params: Record<string, string | string[] | undefined>): Ca
   };
 }
 
+type CatalogContextKey = "all" | "featured" | "most-bought" | "best-offers" | "category" | "search";
+
+type CatalogPageContext = {
+  key: CatalogContextKey;
+  title: string;
+  subtitle: string;
+};
+
+function parseCatalogContext(params: Record<string, string | string[] | undefined>) {
+  return getSingleParam(params.contexto);
+}
+
+function resolveCatalogContext(
+  filters: CatalogFilters,
+  contextParam: string
+): CatalogPageContext {
+  if (filters.query) {
+    return {
+      key: "search",
+      title: "Produtos",
+      subtitle: `Resultado para: "${filters.query}"`
+    };
+  }
+
+  if (filters.category) {
+    return {
+      key: "category",
+      title: "Produtos",
+      subtitle: `Categoria: ${filters.category}`
+    };
+  }
+
+  if (contextParam === "destaques") {
+    return {
+      key: "featured",
+      title: "Produtos",
+      subtitle: "Mostrando destaques"
+    };
+  }
+
+  if (contextParam === "mais-comprados") {
+    return {
+      key: "most-bought",
+      title: "Produtos",
+      subtitle: "Mostrando mais comprados"
+    };
+  }
+
+  if (contextParam === "melhores-ofertas") {
+    return {
+      key: "best-offers",
+      title: "Produtos",
+      subtitle: "Mostrando melhores ofertas"
+    };
+  }
+
+  return {
+    key: "all",
+    title: "Produtos",
+    subtitle: "Todos os produtos"
+  };
+}
+
 function buildSearchMetadata(filters: CatalogFilters, page: number): Metadata {
   const scope = filters.query
-    ? `Resultados para ${filters.query}`
+    ? `Produtos para ${filters.query}`
     : filters.category
-      ? `Ofertas em ${filters.category}`
-      : "Buscar produtos";
+      ? `Produtos em ${filters.category}`
+      : "Produtos";
 
   const descriptionParts = [
-    "Compare precos entre marketplaces e encontre a melhor oferta do momento."
+    "Explore o catalogo de produtos do LinkShop, refine filtros e compare ofertas entre marketplaces."
   ];
 
   if (filters.storeId) {
-    descriptionParts.push("Filtros por loja aplicados.");
+    descriptionParts.push("Filtro de loja aplicado.");
   }
 
   if (filters.minDiscount > 0) {
@@ -110,6 +173,8 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const resolvedParams = await searchParams;
   const filters = parseFilters(resolvedParams);
+  const contextParam = parseCatalogContext(resolvedParams);
+  const context = resolveCatalogContext(filters, contextParam);
   const page = parsePage(resolvedParams.pagina);
   const response = await catalogService.searchCatalog({
     ...filters,
@@ -124,6 +189,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   return (
     <CatalogSearchView
       result={response.data}
+      context={context}
       buildPageHref={(targetPage) => buildPageHref(resolvedParams, targetPage)}
     />
   );

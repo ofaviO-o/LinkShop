@@ -38,7 +38,9 @@ function HeaderContent({
   onSignOut
 }: HeaderContentProps) {
   function navItemClass(href: string) {
-    const isActive = pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
+    const matchesProductsAlias =
+      href === "/buscar" && (pathname === "/produtos" || pathname.startsWith("/produtos/"));
+    const isActive = pathname === href || (href !== "/" && pathname.startsWith(`${href}/`)) || matchesProductsAlias;
 
     return `rounded-full px-3 py-1.5 text-sm transition ${
       isActive ? "bg-black/10 text-ink" : "text-neutral-600 hover:bg-black/5"
@@ -113,7 +115,7 @@ function HeaderContent({
           Inicio
         </Link>
         <Link href="/buscar" className={navItemClass("/buscar")}>
-          Buscar
+          Produtos
         </Link>
         <Link href="/favoritos" className={navItemClass("/favoritos")}>
           Favoritos ({favoritesCount})
@@ -156,7 +158,7 @@ export function SiteHeader() {
       return;
     }
 
-    if (pathname === "/buscar") {
+    if (pathname === "/buscar" || pathname === "/produtos") {
       const queryFromUrl = new URLSearchParams(window.location.search).get("q") ?? "";
       setSearchQuery(queryFromUrl);
     } else {

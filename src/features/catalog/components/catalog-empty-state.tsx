@@ -8,12 +8,12 @@ type CatalogEmptyStateProps = {
 export function CatalogEmptyState({ query, hasFilters = false }: CatalogEmptyStateProps) {
   return (
     <div className="rounded-[1.75rem] border border-dashed border-black/10 bg-white px-6 py-14 text-center shadow-glow">
-      <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-coral">Sem resultados</p>
-      <h3 className="mt-3 font-display text-3xl leading-tight">Nenhum produto combinou com sua busca.</h3>
+      <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-coral">Catalogo vazio</p>
+      <h3 className="mt-3 font-display text-3xl leading-tight">Nenhum produto encontrado para este contexto.</h3>
       <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-neutral-600 md:text-base">
         {query
-          ? `Nao encontramos resultados para "${query}". Tente um termo mais amplo, outra categoria ou remova parte dos filtros.`
-          : "Tente ajustar os filtros para ampliar a comparacao entre marketplaces e descobrir novas ofertas."}
+          ? `Nao encontramos produtos para "${query}". Tente um termo mais amplo, outra categoria ou remova parte dos filtros.`
+          : "Ajuste os filtros para ampliar a exploracao do catalogo e descobrir novas ofertas."}
       </p>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-sm">
@@ -21,14 +21,14 @@ export function CatalogEmptyState({ query, hasFilters = false }: CatalogEmptySta
           href="/buscar"
           className="inline-flex items-center justify-center rounded-full bg-ink px-5 py-3 font-semibold text-white transition hover:bg-neutral-800"
         >
-          Ver todo o catalogo
+          Ver todos os produtos
         </Link>
         {hasFilters ? (
           <Link
             href={query ? `/buscar?q=${encodeURIComponent(query)}` : "/buscar"}
             className="inline-flex items-center justify-center rounded-full bg-coral px-5 py-3 font-semibold text-white transition hover:bg-orange-600"
           >
-            Limpar filtros
+            Limpar refinamentos
           </Link>
         ) : null}
       </div>

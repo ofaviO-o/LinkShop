@@ -219,7 +219,7 @@ function buildHomeShelves(items: CatalogItem[], categories: CatalogCategorySumma
     contextKey: `category:${category.slug}`,
     title: category.name,
     description: `Selecao de ${category.name.toLowerCase()} com comparacao ativa no catalogo.`,
-    viewMoreHref: `/buscar?categoria=${encodeURIComponent(category.name)}`,
+    viewMoreHref: `/buscar?contexto=categoria&categoria=${encodeURIComponent(category.name)}`,
     items: sortCatalogItems(
       items.filter((item) => item.product.category === category.name),
       "relevance"
@@ -232,7 +232,7 @@ function buildHomeShelves(items: CatalogItem[], categories: CatalogCategorySumma
       contextKey: "featured",
       title: "Destaques",
       description: "Itens em evidência para descoberta rápida.",
-      viewMoreHref: "/buscar?ordem=relevance",
+      viewMoreHref: "/buscar?contexto=destaques&ordem=relevance",
       items: featuredProducts
     },
     {
@@ -240,7 +240,7 @@ function buildHomeShelves(items: CatalogItem[], categories: CatalogCategorySumma
       contextKey: "most-bought",
       title: "Mais comprados",
       description: "Produtos com maior tração de interesse recente.",
-      viewMoreHref: "/buscar?ordem=popularity",
+      viewMoreHref: "/buscar?contexto=mais-comprados&ordem=popularity",
       items: mostBoughtProducts
     },
     {
@@ -248,7 +248,7 @@ function buildHomeShelves(items: CatalogItem[], categories: CatalogCategorySumma
       contextKey: "best-offers",
       title: "Melhores ofertas",
       description: "Produtos com descontos mais agressivos do momento.",
-      viewMoreHref: "/buscar?ordem=best-discount",
+      viewMoreHref: "/buscar?contexto=melhores-ofertas&ordem=best-discount",
       items: bestOfferProducts
     },
     ...categoryShelves
