@@ -123,11 +123,16 @@ export default async function ProductOfferPage({ params }: ProductOfferPageProps
           description={
             bestOffer
               ? `A melhor oportunidade atual esta em ${getStoreDisplayName(bestOffer.storeId)}${
-                  bestDiffersFromLowest ? ", mesmo com diferenca para o menor preco bruto." : "."
-                } Compare com as demais lojas antes de seguir para a compra.`
+                  bestDiffersFromLowest ? ", com recomendacao de qualidade mesmo acima do menor preco bruto." : "."
+                } Compare com as demais lojas antes de clicar na oferta.`
               : "Cada oferta mostra loja, preco e acesso direto para voce finalizar na plataforma de origem."
           }
-          action={<span className="text-sm text-neutral-500">{offersResponse.data.length} ofertas comparaveis</span>}
+          action={
+            <div className="grid gap-1 text-right text-sm text-neutral-500">
+              <span>{offersResponse.data.length} ofertas comparaveis</span>
+              <span>CTAs com redirecionamento rastreado por parceiro</span>
+            </div>
+          }
         />
 
         <OfferList offers={offersResponse.data} bestOfferId={bestOffer?.id} />

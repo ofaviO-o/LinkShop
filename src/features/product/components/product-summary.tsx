@@ -12,6 +12,52 @@ type ProductSummaryProps = {
   item: CatalogItem;
 };
 
+function normalizeQualityScore(score: number | undefined) {
+  if (typeof score !== "number" || !Number.isFinite(score)) {
+    return null;
+  }
+
+  const normalized = score <= 1 ? score * 100 : score;
+  return Math.max(0, Math.min(100, Math.round(normalized)));
+}
+
+function getQualityLabel(score: number | undefined) {
+  const normalized = normalizeQualityScore(score);
+
+  if (normalized === null) {
+    return "Em avaliacao";
+  }
+
+  if (normalized >= 85) {
+    return "Alta";
+  }
+
+  if (normalized >= 70) {
+    return "Boa";
+  }
+
+  return "Regular";
+}
+
+function formatUpdatedAt(value: string | undefined) {
+  if (!value) {
+    return "Nao informado";
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Nao informado";
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(parsed);
+}
+
 export function ProductSummary({ item }: ProductSummaryProps) {
   const bestOffer = item.bestOffer;
   const productName = item.product.name.trim() || "Produto sem nome";
@@ -29,6 +75,9 @@ export function ProductSummary({ item }: ProductSummaryProps) {
   const bestOfferSeller = bestOffer?.sellerName?.trim() || "Loja parceira";
   const bestOfferStore = bestOffer ? getStoreDisplayName(bestOffer.storeId) : "Loja indisponivel";
   const bestOfferPrice = bestOffer?.price ?? item.lowestPrice;
+  const bestQualityLabel = getQualityLabel(bestOffer?.qualityScore);
+  const bestQualityScore = normalizeQualityScore(bestOffer?.qualityScore);
+  const bestOfferUpdatedAt = formatUpdatedAt(bestOffer?.lastSyncedAt);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.62fr)]">
@@ -91,6 +140,8 @@ export function ProductSummary({ item }: ProductSummaryProps) {
 
             <div className="mt-6 grid gap-2 text-sm text-neutral-500">
               <span>Loja da melhor oferta: {bestOfferStore}</span>
+              <span>Ultima atualizacao da oferta: {bestOfferUpdatedAt}</span>
+              <span>Qualidade da oferta: {bestQualityLabel}</span>
               {bestDiffersFromLowest && bestOffer ? (
                 <span>
                   Melhor oferta x menor preco: {formatPrice(bestOffer.price - item.lowestPrice)}
@@ -108,10 +159,10 @@ export function ProductSummary({ item }: ProductSummaryProps) {
       </article>
 
       <aside className="rounded-[2rem] bg-gradient-to-br from-ink via-neutral-900 to-lagoon p-6 text-white shadow-glow">
-        <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-coral">Pronto para comprar?</p>
+        <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-coral">Oferta recomendada</p>
         <h3 className="mt-3 font-display text-3xl leading-tight">{bestOffer ? bestOfferStore : "Oferta indisponivel"}</h3>
         <p className="mt-3 text-sm leading-7 text-white/75">
-          Confira os detalhes e siga para a loja com mais contexto para decidir com confianca.
+          Escolha sugerida pelo ranking de qualidade, preco e disponibilidade para acelerar sua decisao.
         </p>
 
         {bestOffer ? (
@@ -128,11 +179,21 @@ export function ProductSummary({ item }: ProductSummaryProps) {
               </div>
               <p className="mt-3 text-sm text-white/75">Vendido por {bestOfferSeller}</p>
               <p className="mt-2 text-sm text-white/75">{bestOffer.installmentText ?? "Pagamento a vista"}</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+                <span className="rounded-full bg-white/15 px-3 py-1">Qualidade: {bestQualityLabel}{bestQualityScore !== null ? ` (${bestQualityScore}/100)` : ""}</span>
+                <span className="rounded-full bg-white/15 px-3 py-1">Atualizada: {bestOfferUpdatedAt}</span>
+              </div>
               {bestDiffersFromLowest ? (
                 <p className="mt-2 text-sm text-white/75">
                   Menor preco bruto no mercado: {formatPrice(item.lowestPrice)}.
                 </p>
+              ) : (
+                <p className="mt-2 text-sm text-white/75">Esta recomendacao tambem e o menor preco bruto atual.</p>
+              )}
+              {bestOfferSavings > 0 ? (
+                <p className="mt-2 text-sm text-white/75">Economia neste anuncio: {formatPrice(bestOfferSavings)}.</p>
               ) : null}
+              {rankingReason ? <p className="mt-2 text-sm text-white/75">{rankingReason}</p> : null}
             </div>
 
             <a
@@ -141,9 +202,9 @@ export function ProductSummary({ item }: ProductSummaryProps) {
               rel="noreferrer noopener sponsored"
               className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-coral px-5 py-4 text-base font-semibold text-white transition hover:bg-orange-600"
             >
-              Ir para {bestOfferStore}
+              Ir para oferta na {bestOfferStore}
             </a>
-            <p className="mt-3 text-center text-xs text-white/70">Voce sera redirecionado para a loja em uma nova aba.</p>
+            <p className="mt-3 text-center text-xs text-white/70">Abre em nova aba com rastreamento de parceiro para suportar o LinkShop.</p>
           </>
         ) : (
           <div className="mt-6 rounded-[1.5rem] bg-white/10 p-5 text-sm text-white/80">

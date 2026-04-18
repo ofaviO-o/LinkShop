@@ -9,6 +9,34 @@ type OfferListProps = {
   bestOfferId?: string;
 };
 
+function normalizeQualityScore(score: number | undefined) {
+  if (typeof score !== "number" || !Number.isFinite(score)) {
+    return null;
+  }
+
+  const normalized = score <= 1 ? score * 100 : score;
+  return Math.max(0, Math.min(100, Math.round(normalized)));
+}
+
+function formatUpdatedAt(value: string | undefined) {
+  if (!value) {
+    return "Nao informado";
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Nao informado";
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(parsed);
+}
+
 export function OfferList({ offers, bestOfferId }: OfferListProps) {
   if (!offers.length) {
     return (
@@ -42,6 +70,8 @@ export function OfferList({ offers, bestOfferId }: OfferListProps) {
         const discount = calculateDiscountPercentage(offer.price, offer.originalPrice);
         const offerTitle = offer.title.trim() || "Oferta sem titulo";
         const sellerName = offer.sellerName.trim() || "Loja parceira";
+        const qualityScore = normalizeQualityScore(offer.qualityScore);
+        const updatedAt = formatUpdatedAt(offer.lastSyncedAt);
 
         return (
           <article
@@ -70,6 +100,9 @@ export function OfferList({ offers, bestOfferId }: OfferListProps) {
                   <span className="rounded-full bg-black/5 px-3 py-1 text-neutral-600">
                     {getAvailabilityLabel(offer.availability)}
                   </span>
+                  {qualityScore !== null ? (
+                    <span className="rounded-full bg-black/5 px-3 py-1 text-neutral-700">Qualidade {qualityScore}/100</span>
+                  ) : null}
                 </div>
 
                 <div>
@@ -82,6 +115,7 @@ export function OfferList({ offers, bestOfferId }: OfferListProps) {
                 <div className="grid gap-1 text-sm text-neutral-500">
                   <span>{offer.installmentText ?? "Pagamento a vista"}</span>
                   <span>Frete: {offer.shippingCost != null ? formatPrice(offer.shippingCost) : "Consultar na loja"}</span>
+                  <span>Atualizada em: {updatedAt}</span>
                   {isBestOffer && offer.rankingReason ? <span className="line-clamp-2">{offer.rankingReason}</span> : null}
                 </div>
               </div>
@@ -111,9 +145,9 @@ export function OfferList({ offers, bestOfferId }: OfferListProps) {
                     isBestOffer ? "bg-coral text-white hover:bg-orange-600" : "bg-ink text-white hover:bg-neutral-800"
                   }`}
                 >
-                  {isBestOffer ? `Ir para ${getStoreDisplayName(offer.storeId)}` : `Ir para ${getStoreDisplayName(offer.storeId)}`}
+                  Ir para oferta na {getStoreDisplayName(offer.storeId)}
                 </a>
-                <p className="text-xs text-neutral-500">Abre a loja em nova aba.</p>
+                <p className="text-xs text-neutral-500">Nova aba com redirecionamento de parceiro.</p>
               </div>
             </div>
           </article>
