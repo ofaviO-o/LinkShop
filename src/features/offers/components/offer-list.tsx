@@ -10,6 +10,14 @@ type OfferListProps = {
 };
 
 export function OfferList({ offers, bestOfferId }: OfferListProps) {
+  if (!offers.length) {
+    return (
+      <div className="rounded-[1.5rem] border border-dashed border-black/10 bg-white p-6 text-sm text-neutral-600">
+        Ainda nao ha ofertas disponiveis para este produto. Tente novamente em alguns instantes.
+      </div>
+    );
+  }
+
   const offerPrices = offers.map((offer) => offer.price).filter(isFinitePositiveNumber);
   const lowestPrice = offerPrices.length ? Math.min(...offerPrices) : null;
   const orderedOffers = [...offers].sort((first, second) => {
@@ -39,7 +47,9 @@ export function OfferList({ offers, bestOfferId }: OfferListProps) {
           <article
             key={offer.id}
             className={`rounded-[1.5rem] border p-5 transition ${
-              isBestOffer ? "border-coral bg-coral/5 shadow-glow" : "border-black/5 bg-white"
+              isBestOffer
+                ? "border-coral bg-gradient-to-r from-coral/10 to-white shadow-glow"
+                : "border-black/5 bg-white"
             }`}
           >
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -52,7 +62,7 @@ export function OfferList({ offers, bestOfferId }: OfferListProps) {
                     <span className="rounded-full bg-black/5 px-3 py-1 text-neutral-600">Opcao #{index + 1}</span>
                   )}
                   {isLowestPrice ? (
-                    <span className="rounded-full bg-lagoon/10 px-3 py-1 text-lagoon">Menor preco</span>
+                    <span className="rounded-full bg-lagoon px-3 py-1 text-white">Menor preco</span>
                   ) : null}
                   {discount > 0 ? (
                     <span className="rounded-full bg-gold px-3 py-1 text-ink">{discount}% OFF</span>
@@ -63,19 +73,21 @@ export function OfferList({ offers, bestOfferId }: OfferListProps) {
                 </div>
 
                 <div>
-                  <h3 className="font-display text-2xl line-clamp-2" title={offerTitle}>{offerTitle}</h3>
+                  <h3 className="line-clamp-2 font-display text-2xl" title={offerTitle}>
+                    {offerTitle}
+                  </h3>
                   <p className="mt-1 text-sm text-neutral-500">Vendido por {sellerName}</p>
                 </div>
 
                 <div className="grid gap-1 text-sm text-neutral-500">
                   <span>{offer.installmentText ?? "Pagamento a vista"}</span>
                   <span>Frete: {offer.shippingCost != null ? formatPrice(offer.shippingCost) : "Consultar na loja"}</span>
-                  {offer.rankingReason ? <span className="line-clamp-2">{offer.rankingReason}</span> : null}
+                  {isBestOffer && offer.rankingReason ? <span className="line-clamp-2">{offer.rankingReason}</span> : null}
                 </div>
               </div>
 
               <div className="grid gap-3 md:min-w-[240px] md:justify-items-end">
-                <div className="text-right">
+                <div className={`rounded-2xl px-4 py-3 text-right ${isBestOffer ? "bg-coral/10" : "bg-black/5"}`}>
                   <div className="flex items-end justify-end gap-3">
                     <strong className="font-display text-3xl">{formatPrice(offer.price)}</strong>
                     {offer.originalPrice ? (
@@ -84,7 +96,7 @@ export function OfferList({ offers, bestOfferId }: OfferListProps) {
                   </div>
                   <p className="mt-2 text-sm text-neutral-500">
                     {isBestOffer
-                      ? "Oferta escolhida pelo ranking de qualidade."
+                      ? "Escolhida como melhor combinacao de preco e qualidade."
                       : isLowestPrice
                         ? "Este e o menor preco bruto atual."
                         : "Compare antes de sair para a loja."}
@@ -99,8 +111,9 @@ export function OfferList({ offers, bestOfferId }: OfferListProps) {
                     isBestOffer ? "bg-coral text-white hover:bg-orange-600" : "bg-ink text-white hover:bg-neutral-800"
                   }`}
                 >
-                  {isBestOffer ? `Ir para ${getStoreDisplayName(offer.storeId)}` : "Ver oferta na loja"}
+                  {isBestOffer ? `Ir para ${getStoreDisplayName(offer.storeId)}` : `Ir para ${getStoreDisplayName(offer.storeId)}`}
                 </a>
+                <p className="text-xs text-neutral-500">Abre a loja em nova aba.</p>
               </div>
             </div>
           </article>

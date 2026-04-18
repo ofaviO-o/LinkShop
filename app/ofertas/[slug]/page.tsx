@@ -84,7 +84,7 @@ export default async function ProductOfferPage({ params }: ProductOfferPageProps
         <SectionHeading
           eyebrow="Produto"
           title={item.product.name}
-          description="Compare as ofertas disponiveis entre diferentes lojas, acompanhe a evolucao do preco e identifique rapidamente a melhor compra."
+          description="Analise rapidamente a melhor oferta, confira o menor preco do mercado e avance para a loja com mais confianca."
           action={
             <div className="grid gap-2 rounded-[1.5rem] bg-white px-5 py-4 text-sm text-neutral-500 shadow-glow">
               <span>{offersResponse.data.length} ofertas encontradas</span>
@@ -93,7 +93,7 @@ export default async function ProductOfferPage({ params }: ProductOfferPageProps
               </span>
               <span>Menor preco: {formatPrice(item.lowestPrice)}</span>
               {bestDiffersFromLowest && bestOffer ? (
-                <span>Diferenca: {formatPrice(bestOffer.price - item.lowestPrice)}</span>
+                <span>Melhor oferta x menor preco: {formatPrice(bestOffer.price - item.lowestPrice)}</span>
               ) : (
                 <span>Melhor oferta coincide com o menor preco.</span>
               )}
@@ -125,7 +125,7 @@ export default async function ProductOfferPage({ params }: ProductOfferPageProps
               ? `A melhor oportunidade atual esta em ${getStoreDisplayName(bestOffer.storeId)}${
                   bestDiffersFromLowest ? ", mesmo com diferenca para o menor preco bruto." : "."
                 } Compare com as demais lojas antes de seguir para a compra.`
-              : "Cada oferta destaca loja, preco, desconto e acesso direto para finalizar a compra."
+              : "Cada oferta mostra loja, preco e acesso direto para voce finalizar na plataforma de origem."
           }
           action={<span className="text-sm text-neutral-500">{offersResponse.data.length} ofertas comparaveis</span>}
         />
