@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { CatalogHorizontalShelf } from "@/features/catalog/components/catalog-horizontal-shelf";
+import { ProductCarouselSection } from "@/features/catalog/components/catalog-horizontal-shelf";
 import type { CatalogHomeSections } from "@/features/catalog/types/catalog.types";
 import { SectionHeading } from "@/shared/ui/section-heading";
 
@@ -15,7 +15,7 @@ export function CatalogHomeView({ sections }: CatalogHomeViewProps) {
         <SectionHeading
           eyebrow="Vitrine"
           title="Descubra ofertas por contexto"
-          description="Explore blocos compactos de produtos e avance para a listagem completa quando quiser aprofundar."
+          description="Navegue por vitrines horizontais e abra a listagem completa da secao quando quiser."
           action={
             <Link
               href="/buscar"
@@ -28,9 +28,9 @@ export function CatalogHomeView({ sections }: CatalogHomeViewProps) {
       </section>
 
       {sections.shelves.map((shelf) => (
-        <CatalogHorizontalShelf
+        <ProductCarouselSection
           key={shelf.id}
-          eyebrow="Home"
+          contextKey={shelf.contextKey}
           title={shelf.title}
           description={shelf.description}
           items={shelf.items}

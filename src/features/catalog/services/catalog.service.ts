@@ -216,6 +216,7 @@ function buildHomeShelves(items: CatalogItem[], categories: CatalogCategorySumma
 
   const categoryShelves = categories.slice(0, 3).map((category) => ({
     id: `category-${category.slug}`,
+    contextKey: `category:${category.slug}`,
     title: category.name,
     description: `Selecao de ${category.name.toLowerCase()} com comparacao ativa no catalogo.`,
     viewMoreHref: `/buscar?categoria=${encodeURIComponent(category.name)}`,
@@ -228,6 +229,7 @@ function buildHomeShelves(items: CatalogItem[], categories: CatalogCategorySumma
   return [
     {
       id: "featured",
+      contextKey: "featured",
       title: "Destaques",
       description: "Itens em evidência para descoberta rápida.",
       viewMoreHref: "/buscar?ordem=relevance",
@@ -235,6 +237,7 @@ function buildHomeShelves(items: CatalogItem[], categories: CatalogCategorySumma
     },
     {
       id: "most-bought",
+      contextKey: "most-bought",
       title: "Mais comprados",
       description: "Produtos com maior tração de interesse recente.",
       viewMoreHref: "/buscar?ordem=popularity",
@@ -242,6 +245,7 @@ function buildHomeShelves(items: CatalogItem[], categories: CatalogCategorySumma
     },
     {
       id: "best-offers",
+      contextKey: "best-offers",
       title: "Melhores ofertas",
       description: "Produtos com descontos mais agressivos do momento.",
       viewMoreHref: "/buscar?ordem=best-discount",

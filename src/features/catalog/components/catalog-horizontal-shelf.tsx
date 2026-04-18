@@ -4,21 +4,21 @@ import { CatalogProductCard } from "@/features/catalog/components/catalog-produc
 import type { CatalogItem } from "@/features/catalog/types/catalog.types";
 import { SectionHeading } from "@/shared/ui/section-heading";
 
-type CatalogHorizontalShelfProps = {
-  eyebrow: string;
+type ProductCarouselSectionProps = {
+  contextKey: string;
   title: string;
-  description: string;
+  description?: string;
   items: CatalogItem[];
   viewMoreHref: string;
 };
 
-export function CatalogHorizontalShelf({
-  eyebrow,
+export function ProductCarouselSection({
+  contextKey,
   title,
   description,
   items,
   viewMoreHref
-}: CatalogHorizontalShelfProps) {
+}: ProductCarouselSectionProps) {
   if (!items.length) {
     return null;
   }
@@ -26,7 +26,7 @@ export function CatalogHorizontalShelf({
   return (
     <section className="section-shell">
       <SectionHeading
-        eyebrow={eyebrow}
+        eyebrow="Home"
         title={title}
         description={description}
         action={
@@ -39,11 +39,18 @@ export function CatalogHorizontalShelf({
         }
       />
 
-      <div className="grid auto-cols-[78%] grid-flow-col gap-3 overflow-x-auto pb-2 sm:auto-cols-[48%] lg:auto-cols-[32%] xl:auto-cols-[24%]">
+      <div
+        data-section-context={contextKey}
+        className="grid auto-cols-[86%] grid-flow-col gap-3 overflow-x-auto pb-2 pr-1 scroll-smooth snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[56%] md:auto-cols-[38%] lg:auto-cols-[calc((100%-2.25rem)/4)]"
+      >
         {items.map((item) => (
-          <CatalogProductCard key={item.product.id} item={item} variant="compact" />
+          <div key={item.product.id} className="snap-start">
+            <CatalogProductCard item={item} variant="compact" />
+          </div>
         ))}
       </div>
     </section>
   );
 }
+
+export const CatalogHorizontalShelf = ProductCarouselSection;

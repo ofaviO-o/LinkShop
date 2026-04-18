@@ -55,6 +55,7 @@ export type CatalogCategorySummary = {
 
 export type CatalogHomeShelf = {
   id: string;
+  contextKey: string;
   title: string;
   description: string;
   viewMoreHref: string;

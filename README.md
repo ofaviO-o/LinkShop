@@ -49,13 +49,6 @@ backend/
 - `src/stores/`: ponto unico de export das stores
 - `backend/`: API FastAPI com PostgreSQL
 
-## Contas mock de teste
-
-Estas contas existem apenas para ambiente de desenvolvimento e experiencia:
-
-- `admin`: `flavioaugusto.borges.9@hotmail.com` / `123456`
-- `user`: `flavioaugusto.borges.8@gmail.com` / `123456`
-
 ## Como rodar
 
 ```bash
