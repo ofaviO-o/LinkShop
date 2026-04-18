@@ -144,6 +144,7 @@ export function SiteHeader() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isFloatingVisible, setIsFloatingVisible] = useState(false);
+  const isFloatingVisibleRef = useRef(false);
 
   const lastScrollYRef = useRef(0);
   const upTravelRef = useRef(0);
@@ -165,6 +166,7 @@ export function SiteHeader() {
 
   useEffect(() => {
     setIsFloatingVisible(false);
+    isFloatingVisibleRef.current = false;
     upTravelRef.current = 0;
     downTravelRef.current = 0;
   }, [pathname]);
@@ -176,8 +178,18 @@ export function SiteHeader() {
 
     lastScrollYRef.current = window.scrollY;
     setIsFloatingVisible(false);
+    isFloatingVisibleRef.current = false;
     upTravelRef.current = 0;
     downTravelRef.current = 0;
+
+    function setFloatingVisible(nextVisible: boolean) {
+      if (isFloatingVisibleRef.current === nextVisible) {
+        return;
+      }
+
+      isFloatingVisibleRef.current = nextVisible;
+      setIsFloatingVisible(nextVisible);
+    }
 
     function handleScroll() {
       if (frameRef.current !== null) {
@@ -197,8 +209,8 @@ export function SiteHeader() {
         if (currentY <= TOP_ZONE) {
           upTravelRef.current = 0;
           downTravelRef.current = 0;
-          if (isFloatingVisible) {
-            setIsFloatingVisible(false);
+          if (isFloatingVisibleRef.current) {
+            setFloatingVisible(false);
           }
           lastScrollYRef.current = currentY;
           return;
@@ -208,16 +220,16 @@ export function SiteHeader() {
           upTravelRef.current += Math.abs(delta);
           downTravelRef.current = 0;
 
-          if (!isFloatingVisible && upTravelRef.current >= SHOW_ON_UP_THRESHOLD) {
-            setIsFloatingVisible(true);
+          if (!isFloatingVisibleRef.current && upTravelRef.current >= SHOW_ON_UP_THRESHOLD) {
+            setFloatingVisible(true);
             upTravelRef.current = 0;
           }
         } else {
           downTravelRef.current += delta;
           upTravelRef.current = 0;
 
-          if (isFloatingVisible && downTravelRef.current >= HIDE_ON_DOWN_THRESHOLD) {
-            setIsFloatingVisible(false);
+          if (isFloatingVisibleRef.current && downTravelRef.current >= HIDE_ON_DOWN_THRESHOLD) {
+            setFloatingVisible(false);
             downTravelRef.current = 0;
           }
         }
@@ -234,7 +246,7 @@ export function SiteHeader() {
         frameRef.current = null;
       }
     };
-  }, [isFloatingVisible]);
+  }, []);
 
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
