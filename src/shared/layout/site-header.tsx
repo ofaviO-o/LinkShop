@@ -281,8 +281,8 @@ export function SiteHeader() {
       <div className="pointer-events-none fixed left-0 top-2 z-40 w-full px-3 md:px-0">
         <div className="mx-auto w-[min(100%-1.5rem,80rem)] md:w-[min(100%-2rem,80rem)]">
           <div
-            className={`glass-panel pointer-events-auto px-3 py-3 transition-[transform,opacity] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] md:px-5 md:py-4 ${
-              isFloatingVisible ? "translate-y-0 opacity-100" : "-translate-y-[115%] opacity-0"
+            className={`glass-panel pointer-events-auto px-3 py-3 transition-[transform,opacity] duration-[280ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform md:px-5 md:py-4 ${
+              isFloatingVisible ? "translate-y-0 opacity-100" : "-translate-y-[108%] opacity-0"
             }`}
           >
             <HeaderContent
