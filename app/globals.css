@@ -22,6 +22,10 @@ body {
   @apply mx-auto w-[min(100%-1.5rem,80rem)] pb-16 pt-4 md:w-[min(100%-2rem,80rem)] md:pt-6;
 }
 
+.site-header-shell {
+  @apply w-full px-3 pt-4 md:px-4 md:pt-5;
+}
+
 .glass-panel {
   @apply rounded-[2rem] border border-white/60 bg-white/75 shadow-glow backdrop-blur;
 }

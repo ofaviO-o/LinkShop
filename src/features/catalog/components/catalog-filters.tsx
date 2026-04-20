@@ -92,7 +92,7 @@ export function CatalogFilters({ filters, categories, stores }: CatalogFiltersPr
     "min-w-0 rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-coral/40";
 
   return (
-    <aside className="glass-panel h-fit p-5 md:sticky md:top-28">
+    <aside className="glass-panel h-fit p-5 xl:sticky xl:top-28">
       <div className="mb-5 flex items-center justify-between">
         <h3 className="font-display text-2xl">Refinar produtos</h3>
         <button type="button" onClick={resetFilters} className="text-sm font-medium text-coral">

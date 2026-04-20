@@ -6,17 +6,23 @@ import { CatalogProductCard } from "@/features/catalog/components/catalog-produc
 type CatalogGridProps = {
   items: CatalogItem[];
   emptyState?: ReactNode;
+  variant?: "default" | "compact";
 };
 
-export function CatalogGrid({ items, emptyState }: CatalogGridProps) {
+export function CatalogGrid({ items, emptyState, variant = "default" }: CatalogGridProps) {
   if (!items.length) {
     return <>{emptyState ?? null}</>;
   }
 
+  const gridClassName =
+    variant === "compact"
+      ? "grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+      : "grid gap-6 md:grid-cols-2";
+
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className={gridClassName}>
       {items.map((item) => (
-        <CatalogProductCard key={item.product.id} item={item} />
+        <CatalogProductCard key={item.product.id} item={item} variant={variant === "compact" ? "compact" : "default"} />
       ))}
     </div>
   );

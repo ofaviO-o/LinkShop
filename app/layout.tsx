@@ -49,9 +49,11 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="pt-BR" className={`${jakarta.variable} ${grotesk.variable}`}>
       <body>
-        <div className="page-shell">
-          <AuthSessionProvider />
+        <AuthSessionProvider />
+        <div className="site-header-shell">
           <SiteHeader />
+        </div>
+        <div className="page-shell">
           {children}
           <SiteFooter />
         </div>

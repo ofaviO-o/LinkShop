@@ -14,20 +14,19 @@ type CatalogProductCardProps = {
 
 function CompactCatalogProductCard({ item }: { item: CatalogItem }) {
   const productHref = `/ofertas/${item.product.slug}`;
-  const bestOffer = item.bestOffer;
   const safeImageUrl = getSafeImageUrl(item.product.thumbnailUrl);
 
   return (
-    <article className="h-full overflow-hidden rounded-[1.25rem] border border-black/5 bg-white p-3 shadow-glow">
-      <div className="relative mb-3 aspect-square overflow-hidden rounded-xl bg-gradient-to-b from-orange-50 to-neutral-100">
+    <article className="h-full overflow-hidden rounded-[1rem] border border-black/5 bg-white p-2.5 shadow-glow">
+      <div className="relative mb-2.5 aspect-square overflow-hidden rounded-lg bg-gradient-to-b from-orange-50 to-neutral-100">
         <Link href={productHref} aria-label={`Ver ${item.product.name}`} className="absolute inset-0 z-10" />
         {safeImageUrl ? (
           <Image
             src={safeImageUrl}
             alt={item.product.name}
             fill
-            sizes="(max-width: 640px) 82vw, (max-width: 1024px) 56vw, 24vw"
-            className="object-contain p-2"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1440px) 20vw, 16vw"
+            className="object-contain p-1.5"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center px-3 text-center text-xs text-neutral-500">
@@ -37,7 +36,7 @@ function CompactCatalogProductCard({ item }: { item: CatalogItem }) {
 
         <div className="absolute left-2 top-2">
           {item.bestDiscountPercentage > 0 ? (
-            <span className="rounded-full bg-gold px-2 py-1 text-[10px] font-bold text-ink">
+            <span className="rounded-full bg-gold px-1.5 py-0.5 text-[10px] font-bold text-ink">
               {item.bestDiscountPercentage}% OFF
             </span>
           ) : null}
@@ -48,12 +47,11 @@ function CompactCatalogProductCard({ item }: { item: CatalogItem }) {
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Link href={productHref} className="line-clamp-2 text-sm font-semibold text-ink transition hover:text-coral" title={item.product.name}>
+      <div className="space-y-1">
+        <Link href={productHref} className="line-clamp-2 text-xs font-semibold text-ink transition hover:text-coral sm:text-sm" title={item.product.name}>
           {item.product.name}
         </Link>
-        <p className="font-display text-xl leading-none text-ink">{formatPrice(item.lowestPrice)}</p>
-        {bestOffer ? <p className="line-clamp-1 text-xs text-neutral-500">{bestOffer.sellerName}</p> : null}
+        <p className="font-display text-lg leading-none text-ink sm:text-xl">{formatPrice(item.lowestPrice)}</p>
       </div>
     </article>
   );

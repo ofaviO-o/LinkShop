@@ -142,14 +142,8 @@ export function CatalogSearchView({ result, context, buildPageHref }: CatalogSea
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <CatalogFilters
-          filters={result.appliedFilters}
-          categories={result.availableCategories}
-          stores={result.availableStores}
-        />
-
-        <div>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="order-2 xl:order-1">
           {activeFilters.length ? (
             <div className="mb-5 flex flex-wrap gap-2">
               {activeFilters.map((filter) => (
@@ -162,6 +156,7 @@ export function CatalogSearchView({ result, context, buildPageHref }: CatalogSea
 
           <CatalogGrid
             items={result.items}
+            variant="compact"
             emptyState={
               <CatalogEmptyState
                 query={result.appliedFilters.query}
@@ -174,6 +169,14 @@ export function CatalogSearchView({ result, context, buildPageHref }: CatalogSea
             currentPage={result.page}
             totalPages={totalPages}
             buildPageHref={buildPageHref}
+          />
+        </div>
+
+        <div className="order-1 xl:order-2">
+          <CatalogFilters
+            filters={result.appliedFilters}
+            categories={result.availableCategories}
+            stores={result.availableStores}
           />
         </div>
       </div>
