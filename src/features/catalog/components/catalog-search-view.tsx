@@ -144,8 +144,8 @@ export function CatalogSearchView({ result, context, buildPageHref }: CatalogSea
         </div>
       </section>
 
-      <section className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="section-shell order-2 xl:order-1">
+      <section className="relative mt-6">
+        <div className="section-shell xl:mr-[320px] 2xl:mr-[340px]">
           {activeFilters.length ? (
             <div className="mb-5 flex flex-wrap gap-2">
               {activeFilters.map((filter) => (
@@ -174,7 +174,7 @@ export function CatalogSearchView({ result, context, buildPageHref }: CatalogSea
           />
         </div>
 
-        <aside className="order-1 xl:order-2">
+        <aside className="mt-6 xl:absolute xl:right-0 xl:top-0 xl:mt-0 xl:w-[320px] 2xl:w-[340px] xl:translate-x-8 2xl:translate-x-12">
           <CatalogFilters
             filters={result.appliedFilters}
             categories={result.availableCategories}
