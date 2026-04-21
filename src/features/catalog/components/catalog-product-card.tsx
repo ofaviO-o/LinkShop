@@ -12,13 +12,21 @@ type CatalogProductCardProps = {
   variant?: "default" | "compact";
 };
 
+const storeLabelById = {
+  amazon: "Amazon",
+  "mercado-livre": "Mercado Livre",
+  shopee: "Shopee"
+} as const;
+
 function CompactCatalogProductCard({ item }: { item: CatalogItem }) {
   const productHref = `/ofertas/${item.product.slug}`;
   const safeImageUrl = getSafeImageUrl(item.product.thumbnailUrl);
+  const bestStoreLabel = item.bestOffer ? storeLabelById[item.bestOffer.storeId] : null;
+  const supportText = item.bestOffer?.installmentText ?? item.product.category;
 
   return (
-    <article className="h-full overflow-hidden rounded-[1rem] border border-black/5 bg-white p-2.5 shadow-glow">
-      <div className="relative mb-2.5 aspect-square overflow-hidden rounded-lg bg-gradient-to-b from-orange-50 to-neutral-100">
+    <article className="flex h-full flex-col overflow-hidden rounded-[1.15rem] border border-black/5 bg-white p-3 shadow-glow">
+      <div className="relative mb-3 aspect-square overflow-hidden rounded-xl bg-gradient-to-b from-orange-50 to-neutral-100">
         <Link href={productHref} aria-label={`Ver ${item.product.name}`} className="absolute inset-0 z-10" />
         {safeImageUrl ? (
           <Image
@@ -26,7 +34,7 @@ function CompactCatalogProductCard({ item }: { item: CatalogItem }) {
             alt={item.product.name}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1440px) 20vw, 16vw"
-            className="object-contain p-1.5"
+            className="object-contain p-2"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center px-3 text-center text-xs text-neutral-500">
@@ -47,11 +55,35 @@ function CompactCatalogProductCard({ item }: { item: CatalogItem }) {
         </div>
       </div>
 
-      <div className="space-y-1">
-        <Link href={productHref} className="line-clamp-2 text-xs font-semibold text-ink transition hover:text-coral sm:text-sm" title={item.product.name}>
+      <div className="flex flex-1 flex-col">
+        <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500">
+          <span className="truncate">{item.product.brand || item.product.category}</span>
+          <span className="shrink-0">{item.offers.length} ofertas</span>
+        </div>
+
+        <Link
+          href={productHref}
+          className="line-clamp-2 min-h-[2.9rem] text-sm font-semibold leading-6 text-ink transition hover:text-coral"
+          title={item.product.name}
+        >
           {item.product.name}
         </Link>
-        <p className="font-display text-lg leading-none text-ink sm:text-xl">{formatPrice(item.lowestPrice)}</p>
+
+        <div className="mt-3">
+          <p className="font-display text-xl leading-none text-ink">{formatPrice(item.lowestPrice)}</p>
+          <p className="mt-1 line-clamp-1 text-xs text-neutral-500">
+            {supportText}
+          </p>
+        </div>
+
+        <div className="mt-auto pt-3">
+          <div className="flex items-center justify-between gap-2 rounded-xl bg-black/[0.03] px-2.5 py-2 text-xs text-neutral-600">
+            <span className="truncate">{bestStoreLabel ? `Melhor na ${bestStoreLabel}` : "Ofertas comparadas"}</span>
+            <span className="shrink-0 font-medium text-ink">
+              {item.storeIds.length} lojas
+            </span>
+          </div>
+        </div>
       </div>
     </article>
   );

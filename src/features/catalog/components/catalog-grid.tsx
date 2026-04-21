@@ -16,7 +16,7 @@ export function CatalogGrid({ items, emptyState, variant = "default" }: CatalogG
 
   const gridClassName =
     variant === "compact"
-      ? "grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6"
+      ? "grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5"
       : "grid gap-6 md:grid-cols-2";
 
   return (
