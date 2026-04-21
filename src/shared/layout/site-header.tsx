@@ -36,10 +36,10 @@ function HeaderMenu({ mode, isAdmin, isAuthenticated, onSignOut }: HeaderMenuPro
   const isTopHeader = mode === "top";
   const summaryClassName = isTopHeader
     ? "inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/18 bg-white/10 text-white transition hover:bg-white/16"
-    : "inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-black/5 text-ink transition hover:bg-black/10";
+    : "inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/18 bg-white/10 text-white transition hover:bg-white/16";
   const menuClassName = isTopHeader
     ? "absolute right-0 top-[calc(100%+0.75rem)] z-50 grid min-w-[13rem] gap-1 rounded-2xl border border-white/18 bg-[#fff7f2] p-2 text-sm text-ink shadow-glow"
-    : "absolute right-0 top-[calc(100%+0.75rem)] z-50 grid min-w-[13rem] gap-1 rounded-2xl border border-black/10 bg-white p-2 text-sm text-ink shadow-glow";
+    : "absolute right-0 top-[calc(100%+0.75rem)] z-50 grid min-w-[13rem] gap-1 rounded-2xl border border-white/18 bg-[#fff7f2] p-2 text-sm text-ink shadow-glow";
   const itemClassName = "rounded-xl px-3 py-2 text-left transition hover:bg-black/5";
 
   return (
@@ -47,9 +47,9 @@ function HeaderMenu({ mode, isAdmin, isAuthenticated, onSignOut }: HeaderMenuPro
       <summary className={summaryClassName}>
         <span className="sr-only">Abrir menu</span>
         <span className="grid gap-[3px]">
-          <span className={`block h-[2px] w-4 rounded-full ${isTopHeader ? "bg-white" : "bg-ink"}`} />
-          <span className={`block h-[2px] w-4 rounded-full ${isTopHeader ? "bg-white" : "bg-ink"}`} />
-          <span className={`block h-[2px] w-4 rounded-full ${isTopHeader ? "bg-white" : "bg-ink"}`} />
+          <span className="block h-[2px] w-4 rounded-full bg-white" />
+          <span className="block h-[2px] w-4 rounded-full bg-white" />
+          <span className="block h-[2px] w-4 rounded-full bg-white" />
         </span>
       </summary>
 
@@ -97,15 +97,15 @@ function HeaderNav({
           ? "bg-white/18 text-white"
           : "text-white/82 hover:bg-white/12"
         : isActive
-          ? "bg-black/10 text-ink"
-          : "text-neutral-600 hover:bg-black/5"
+          ? "bg-white/18 text-white"
+          : "text-white/82 hover:bg-white/12"
     }`;
   }
 
   return (
     <nav
       className={`flex flex-wrap items-center justify-center text-sm ${
-        isTopHeader ? "gap-1.5 text-white/82" : "gap-1 text-neutral-600"
+        isTopHeader ? "gap-1.5 text-white/82" : "gap-1 text-white/82"
       }`}
     >
       <Link href="/" className={navItemClass("/")}>
@@ -145,13 +145,13 @@ function SearchForm({
         className={`min-w-0 flex-1 rounded-full px-4 py-2 text-sm outline-none transition ${
           isTopHeader
             ? "border border-white/24 bg-white text-ink placeholder:text-neutral-400 focus:border-white/50"
-            : "border border-black/10 bg-white focus:border-coral/40"
+            : "border border-white/24 bg-white text-ink placeholder:text-neutral-400 focus:border-white/50"
         }`}
       />
       <button
         type="submit"
         className={`inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition ${
-          isTopHeader ? "bg-ink text-white hover:bg-neutral-900" : "bg-coral text-white hover:bg-orange-600"
+          isTopHeader ? "bg-ink text-white hover:bg-neutral-900" : "bg-ink text-white hover:bg-neutral-900"
         }`}
       >
         Buscar
@@ -391,7 +391,7 @@ export function SiteHeader() {
       <div className="pointer-events-none fixed left-0 top-2 z-40 w-screen px-3 md:px-4">
         <div
           data-site-header-boundary
-          className={`glass-panel pointer-events-auto w-full rounded-none border-x-0 px-3 py-3 transition-[transform,opacity] duration-[280ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform md:px-6 md:py-4 ${
+          className={`pointer-events-auto w-full rounded-[1.75rem] border border-white/20 bg-gradient-to-r from-coral via-orange-500 to-orange-400 px-3 py-3 text-white shadow-glow transition-[transform,opacity] duration-[280ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform md:px-6 md:py-4 ${
             isFloatingVisible ? "translate-y-0 opacity-100" : "-translate-y-[108%] opacity-0"
           }`}
         >
