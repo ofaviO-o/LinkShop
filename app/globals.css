@@ -54,27 +54,26 @@ body {
 
 .fixed-sidebar-layout-panel {
   @apply mt-6;
+  min-width: 0;
 }
 
 @media (min-width: 1280px) {
+  .fixed-sidebar-layout {
+    display: grid;
+    align-items: start;
+    gap: var(--fixed-sidebar-gap, 40px);
+    grid-template-columns: minmax(0, 1fr) minmax(280px, var(--fixed-sidebar-width, 320px));
+  }
+
   .fixed-sidebar-layout-main {
-    margin-right: calc(var(--fixed-sidebar-width, 320px) + var(--fixed-sidebar-gap, 40px));
+    margin-right: 0;
   }
 
   .fixed-sidebar-layout-panel {
-    position: fixed;
+    position: sticky;
     top: var(--fixed-sidebar-top, 144px);
-    right: max(1rem, env(safe-area-inset-right));
-    width: var(--fixed-sidebar-width, 320px);
     max-height: calc(100vh - var(--fixed-sidebar-top, 144px) - 1rem);
     overflow-y: auto;
-    z-index: 30;
     margin-top: 0;
-  }
-}
-
-@media (min-width: 1536px) {
-  .fixed-sidebar-layout-panel {
-    right: max(1.5rem, env(safe-area-inset-right));
   }
 }
