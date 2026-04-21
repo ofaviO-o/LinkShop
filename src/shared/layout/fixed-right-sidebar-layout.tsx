@@ -130,7 +130,7 @@ export function FixedRightSidebarLayout({
       ({
         top: `${effectiveTopOffset}px`,
         width: `${desktopSidebarWidth}px`,
-        maxHeight: `calc(100vh - ${effectiveTopOffset + 16}px)`
+        height: `calc(100vh - ${effectiveTopOffset + 16}px)`
       }) as CSSProperties,
     [desktopSidebarWidth, effectiveTopOffset]
   );
@@ -140,7 +140,7 @@ export function FixedRightSidebarLayout({
       ({
         top: `${effectiveTopOffset}px`,
         width: `${desktopSidebarWidth + collapsedHandleWidth}px`,
-        maxHeight: `calc(100vh - ${effectiveTopOffset + 16}px)`
+        height: `calc(100vh - ${effectiveTopOffset + 16}px)`
       }) as CSSProperties,
     [collapsedHandleWidth, desktopSidebarWidth, effectiveTopOffset]
   );
@@ -174,7 +174,7 @@ export function FixedRightSidebarLayout({
         <aside className={joinClasses("mt-6 min-w-0", sidebarClassName)}>{sidebar}</aside>
       ) : canDockSidebar ? (
         <aside
-          className={joinClasses("fixed right-4 z-30 mt-0 overflow-y-auto 2xl:right-6", sidebarClassName)}
+          className={joinClasses("fixed right-4 z-30 mt-0 overflow-y-auto overscroll-contain 2xl:right-6", sidebarClassName)}
           style={dockedPanelStyle}
         >
           {sidebar}
@@ -207,7 +207,7 @@ export function FixedRightSidebarLayout({
 
           <aside
             className={joinClasses(
-              "ml-auto h-full overflow-y-auto rounded-[2rem] border border-white/60 bg-white/95 p-2 shadow-glow backdrop-blur",
+              "ml-auto h-full overflow-y-auto overscroll-contain rounded-[2rem] border border-white/60 bg-white/95 p-2 shadow-glow backdrop-blur",
               sidebarClassName
             )}
             style={collapsedPanelStyle}

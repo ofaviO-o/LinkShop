@@ -92,7 +92,7 @@ export function CatalogFilters({ filters, categories, stores }: CatalogFiltersPr
     "min-w-0 rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-coral/40";
 
   return (
-    <aside className="glass-panel h-fit p-5">
+    <aside className="glass-panel flex h-full min-h-0 flex-col overflow-hidden p-5">
       <div className="mb-5 flex items-center justify-between">
         <h3 className="font-display text-2xl">Filtrar</h3>
         <button type="button" onClick={resetFilters} className="text-sm font-medium text-coral">
@@ -101,7 +101,7 @@ export function CatalogFilters({ filters, categories, stores }: CatalogFiltersPr
       </div>
 
       <form
-        className="grid gap-4"
+        className="grid min-h-0 flex-1 gap-4 overflow-y-auto pr-1"
         onSubmit={(event) => {
           event.preventDefault();
           applyFilters();
