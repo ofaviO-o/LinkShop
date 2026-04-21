@@ -110,40 +110,42 @@ export function CatalogSearchView({ result, context, buildPageHref }: CatalogSea
   ].filter(Boolean) as string[];
 
   return (
-    <section className="section-shell">
-      <SectionHeading
-        eyebrow="Catalogo"
-        title={context.title}
-        description={context.subtitle}
-        action={
-          <div className="grid gap-2 rounded-[1.5rem] bg-white px-5 py-4 text-sm text-neutral-500 shadow-glow">
-            <span>{result.total} produtos encontrados</span>
-            <span>
-              Exibindo {firstItem} a {lastItem}
-            </span>
-            {lowestResultPrice !== null ? <span>A partir de {formatPrice(lowestResultPrice)}</span> : null}
-          </div>
-        }
-      />
+    <>
+      <section className="section-shell">
+        <SectionHeading
+          eyebrow="Catalogo"
+          title={context.title}
+          description={context.subtitle}
+          action={
+            <div className="grid gap-2 rounded-[1.5rem] bg-white px-5 py-4 text-sm text-neutral-500 shadow-glow">
+              <span>{result.total} produtos encontrados</span>
+              <span>
+                Exibindo {firstItem} a {lastItem}
+              </span>
+              {lowestResultPrice !== null ? <span>A partir de {formatPrice(lowestResultPrice)}</span> : null}
+            </div>
+          }
+        />
 
-      <div className="mb-6 flex flex-wrap gap-2">
-        {quickLinks.map((link) => (
-          <Link
-            key={link.id}
-            href={link.href}
-            className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold transition ${
-              isQuickLinkActive(link, context, result)
-                ? "bg-coral text-white"
-                : "bg-black/5 text-neutral-700 hover:bg-black/10"
-            }`}
-          >
-            {link.label}
-          </Link>
-        ))}
-      </div>
+        <div className="flex flex-wrap gap-2">
+          {quickLinks.map((link) => (
+            <Link
+              key={link.id}
+              href={link.href}
+              className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold transition ${
+                isQuickLinkActive(link, context, result)
+                  ? "bg-coral text-white"
+                  : "bg-black/5 text-neutral-700 hover:bg-black/10"
+              }`}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="order-2 xl:order-1">
+      <section className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="section-shell order-2 xl:order-1">
           {activeFilters.length ? (
             <div className="mb-5 flex flex-wrap gap-2">
               {activeFilters.map((filter) => (
@@ -172,14 +174,14 @@ export function CatalogSearchView({ result, context, buildPageHref }: CatalogSea
           />
         </div>
 
-        <div className="order-1 xl:order-2">
+        <aside className="order-1 xl:order-2">
           <CatalogFilters
             filters={result.appliedFilters}
             categories={result.availableCategories}
             stores={result.availableStores}
           />
-        </div>
-      </div>
-    </section>
+        </aside>
+      </section>
+    </>
   );
 }
