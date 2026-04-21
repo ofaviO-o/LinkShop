@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 type FixedRightSidebarLayoutProps = {
   main: ReactNode;
@@ -15,6 +15,12 @@ type FixedRightSidebarLayoutProps = {
   collapsedToggleLabel?: string;
 };
 
+type LayoutMetrics = {
+  viewportWidth: number | null;
+  containerWidth: number;
+  containerRight: number;
+};
+
 function joinClasses(...values: Array<string | undefined>) {
   return values.filter(Boolean).join(" ");
 }
@@ -26,35 +32,74 @@ export function FixedRightSidebarLayout({
   mainClassName,
   sidebarClassName,
   desktopSidebarWidth = 320,
-  desktopGap = 40,
-  desktopTopOffset = 144,
+  desktopGap = 32,
+  desktopTopOffset = 160,
   desktopMinMainWidth = 760,
   collapsedToggleLabel = "Filtrar"
 }: FixedRightSidebarLayoutProps) {
-  const [viewportWidth, setViewportWidth] = useState<number | null>(null);
+  const layoutRef = useRef<HTMLElement | null>(null);
+  const [layoutMetrics, setLayoutMetrics] = useState<LayoutMetrics>({
+    viewportWidth: null,
+    containerWidth: 0,
+    containerRight: 0
+  });
   const [isCollapsedPanelOpen, setIsCollapsedPanelOpen] = useState(false);
+
   const desktopBreakpoint = 1280;
   const edgeOffset = 16;
+  const collapsedHandleWidth = 48;
 
   useEffect(() => {
-    function syncViewportWidth() {
-      setViewportWidth(window.innerWidth);
+    function syncLayoutMetrics() {
+      const nextViewportWidth = window.innerWidth;
+      const rect = layoutRef.current?.getBoundingClientRect();
+
+      setLayoutMetrics({
+        viewportWidth: nextViewportWidth,
+        containerWidth: rect?.width ?? 0,
+        containerRight: rect?.right ?? nextViewportWidth
+      });
     }
 
-    syncViewportWidth();
-    window.addEventListener("resize", syncViewportWidth, { passive: true });
-    return () => window.removeEventListener("resize", syncViewportWidth);
+    syncLayoutMetrics();
+
+    const observer =
+      typeof ResizeObserver !== "undefined" && layoutRef.current
+        ? new ResizeObserver(() => syncLayoutMetrics())
+        : null;
+
+    if (observer && layoutRef.current) {
+      observer.observe(layoutRef.current);
+    }
+
+    window.addEventListener("resize", syncLayoutMetrics, { passive: true });
+
+    return () => {
+      window.removeEventListener("resize", syncLayoutMetrics);
+      observer?.disconnect();
+    };
   }, []);
 
-  const isDesktop = (viewportWidth ?? 0) >= desktopBreakpoint;
-  const requiredDockWidth = desktopMinMainWidth + desktopSidebarWidth + desktopGap + edgeOffset * 2;
-  const canDockSidebar = isDesktop && (viewportWidth ?? 0) >= requiredDockWidth;
+  const viewportWidth = layoutMetrics.viewportWidth ?? 0;
+  const isDesktop = viewportWidth >= desktopBreakpoint;
+  const sidebarLeft = viewportWidth - edgeOffset - desktopSidebarWidth;
+  const hasEnoughMainWidth = layoutMetrics.containerWidth >= desktopMinMainWidth;
+  const hasDockingLane = sidebarLeft >= layoutMetrics.containerRight + desktopGap;
+  const canDockSidebar = isDesktop && hasEnoughMainWidth && hasDockingLane;
 
   useEffect(() => {
     if (!isDesktop || canDockSidebar) {
       setIsCollapsedPanelOpen(false);
     }
   }, [isDesktop, canDockSidebar]);
+
+  const mainStyle = useMemo(
+    () =>
+      ({
+        maxWidth: `${desktopMinMainWidth + 320}px`
+      }) as CSSProperties,
+    [desktopMinMainWidth]
+  );
 
   const dockedPanelStyle = useMemo(
     () =>
@@ -63,75 +108,89 @@ export function FixedRightSidebarLayout({
         width: `${desktopSidebarWidth}px`,
         maxHeight: `calc(100vh - ${desktopTopOffset + 16}px)`
       }) as CSSProperties,
-    [desktopTopOffset, desktopSidebarWidth]
+    [desktopSidebarWidth, desktopTopOffset]
   );
 
-  const mainDockStyle = useMemo(
+  const collapsedDrawerStyle = useMemo(
     () =>
       ({
-        marginRight: `${desktopSidebarWidth + desktopGap}px`
+        top: `${desktopTopOffset}px`,
+        width: `${desktopSidebarWidth + collapsedHandleWidth}px`,
+        maxHeight: `calc(100vh - ${desktopTopOffset + 16}px)`
       }) as CSSProperties,
-    [desktopGap, desktopSidebarWidth]
+    [collapsedHandleWidth, desktopSidebarWidth, desktopTopOffset]
   );
 
-  const collapsedToggleStyle = useMemo(
+  const collapsedDrawerMotionStyle = useMemo(
     () =>
       ({
-        top: `${desktopTopOffset + 20}px`
+        transform: isCollapsedPanelOpen ? "translate3d(0, 0, 0)" : `translate3d(${desktopSidebarWidth}px, 0, 0)`
       }) as CSSProperties,
-    [desktopTopOffset]
+    [desktopSidebarWidth, isCollapsedPanelOpen]
+  );
+
+  const collapsedPanelStyle = useMemo(
+    () =>
+      ({
+        width: `${desktopSidebarWidth}px`,
+        marginLeft: `${collapsedHandleWidth}px`
+      }) as CSSProperties,
+    [collapsedHandleWidth, desktopSidebarWidth]
   );
 
   return (
-    <section className={joinClasses("mt-6", className)}>
-      <div className={joinClasses("min-w-0", mainClassName)} style={canDockSidebar ? mainDockStyle : undefined}>
-        {main}
+    <section ref={layoutRef} className={joinClasses("mt-6", className)}>
+      <div className="min-w-0">
+        <div className={joinClasses("mx-auto min-w-0", mainClassName)} style={mainStyle}>
+          {main}
+        </div>
       </div>
 
       {!isDesktop ? (
         <aside className={joinClasses("mt-6 min-w-0", sidebarClassName)}>{sidebar}</aside>
       ) : canDockSidebar ? (
         <aside
-          className={joinClasses(
-            "fixed right-4 z-30 mt-0 overflow-y-auto 2xl:right-6",
-            sidebarClassName
-          )}
+          className={joinClasses("fixed right-4 z-30 mt-0 overflow-y-auto 2xl:right-6", sidebarClassName)}
           style={dockedPanelStyle}
         >
           {sidebar}
         </aside>
       ) : (
-        <>
+        <div
+          className="fixed z-30 overflow-visible transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform"
+          style={{
+            right: `${edgeOffset}px`,
+            ...collapsedDrawerStyle,
+            ...collapsedDrawerMotionStyle
+          }}
+        >
           <button
             type="button"
             onClick={() => setIsCollapsedPanelOpen((current) => !current)}
-            className="fixed right-2 z-30 inline-flex items-center gap-2 rounded-l-xl bg-ink px-2 py-3 text-xs font-semibold text-white shadow-lg transition hover:bg-neutral-800"
-            style={collapsedToggleStyle}
+            aria-expanded={isCollapsedPanelOpen}
+            aria-label={isCollapsedPanelOpen ? "Fechar filtros" : "Abrir filtros"}
+            title={collapsedToggleLabel}
+            className="absolute left-0 top-1/2 z-40 inline-flex h-16 w-12 -translate-y-1/2 items-center justify-center rounded-l-[1.35rem] border border-r-0 border-white/60 bg-white/95 text-lg font-semibold text-neutral-600 shadow-[0_12px_32px_rgba(15,23,42,0.08)] backdrop-blur transition-[background-color,color,box-shadow] duration-300 ease-out hover:bg-white hover:text-ink hover:shadow-[0_14px_36px_rgba(15,23,42,0.12)]"
           >
-            <span>{isCollapsedPanelOpen ? "→" : "←"}</span>
-            <span>{collapsedToggleLabel}</span>
+            <span
+              className={`leading-none transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                isCollapsedPanelOpen ? "rotate-180" : "rotate-0"
+              }`}
+            >
+              &lsaquo;
+            </span>
           </button>
 
-          {isCollapsedPanelOpen ? (
-            <>
-              <button
-                type="button"
-                aria-label="Fechar painel de filtros"
-                className="fixed inset-0 z-30 bg-black/30"
-                onClick={() => setIsCollapsedPanelOpen(false)}
-              />
-              <aside
-                className={joinClasses(
-                  "fixed right-4 z-40 mt-0 overflow-y-auto rounded-[2rem] border border-white/60 bg-white/95 p-2 shadow-glow backdrop-blur 2xl:right-6",
-                  sidebarClassName
-                )}
-                style={dockedPanelStyle}
-              >
-                {sidebar}
-              </aside>
-            </>
-          ) : null}
-        </>
+          <aside
+            className={joinClasses(
+              "ml-auto h-full overflow-y-auto rounded-[2rem] border border-white/60 bg-white/95 p-2 shadow-glow backdrop-blur",
+              sidebarClassName
+            )}
+            style={collapsedPanelStyle}
+          >
+            {sidebar}
+          </aside>
+        </div>
       )}
     </section>
   );

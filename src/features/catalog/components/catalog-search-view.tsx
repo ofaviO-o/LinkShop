@@ -112,7 +112,7 @@ export function CatalogSearchView({ result, context, buildPageHref }: CatalogSea
 
   return (
     <>
-      <section className="section-shell">
+      <section className="section-shell mx-auto max-w-[1180px]">
         <SectionHeading
           eyebrow="Catalogo"
           title={context.title}
@@ -147,9 +147,9 @@ export function CatalogSearchView({ result, context, buildPageHref }: CatalogSea
 
       <FixedRightSidebarLayout
         desktopSidebarWidth={340}
-        desktopGap={48}
-        desktopTopOffset={144}
-        desktopMinMainWidth={760}
+        desktopGap={24}
+        desktopTopOffset={168}
+        desktopMinMainWidth={860}
         collapsedToggleLabel="Filtrar"
         main={
           <div className="section-shell">
