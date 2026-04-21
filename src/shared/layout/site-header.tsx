@@ -131,9 +131,12 @@ function SearchForm({
   onSearchSubmit
 }: Pick<HeaderContentProps, "mode" | "searchQuery" | "onSearchQueryChange" | "onSearchSubmit">) {
   const isTopHeader = mode === "top";
+  const formClassName = isTopHeader
+    ? "flex w-full min-w-0 max-w-[36rem] gap-2"
+    : "flex w-full min-w-0 max-w-[32rem] justify-self-start gap-2";
 
   return (
-    <form onSubmit={onSearchSubmit} className="flex min-w-0 gap-2">
+    <form onSubmit={onSearchSubmit} className={formClassName}>
       <input
         type="search"
         value={searchQuery}
