@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { useAuthStore, useCartStore, useFavoritesStore } from "@/stores";
 import { getPreferenceOwnerId } from "@/shared/lib/identity";
+import { ConfirmationModal } from "@/shared/ui/confirmation-modal";
 
 type HeaderContentProps = {
   mode: "top" | "floating";
@@ -17,14 +18,14 @@ type HeaderContentProps = {
   isAuthenticated: boolean;
   favoritesCount: number;
   cartItemsCount: number;
-  onSignOut: () => void;
+  onRequestSignOut: () => void;
 };
 
 type HeaderMenuProps = {
   mode: "top" | "floating";
   isAdmin: boolean;
   isAuthenticated: boolean;
-  onSignOut: () => void;
+  onRequestSignOut: () => void;
 };
 
 const TOP_ZONE = 72;
@@ -32,7 +33,7 @@ const NOISE_THRESHOLD = 1.5;
 const SHOW_ON_UP_THRESHOLD = 8;
 const HIDE_ON_DOWN_THRESHOLD = 10;
 
-function HeaderMenu({ mode, isAdmin, isAuthenticated, onSignOut }: HeaderMenuProps) {
+function HeaderMenu({ mode, isAdmin, isAuthenticated, onRequestSignOut }: HeaderMenuProps) {
   const isTopHeader = mode === "top";
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -106,7 +107,7 @@ function HeaderMenu({ mode, isAdmin, isAuthenticated, onSignOut }: HeaderMenuPro
               type="button"
               onClick={() => {
                 setIsOpen(false);
-                onSignOut();
+                onRequestSignOut();
               }}
               className={itemClassName}
             >
@@ -215,7 +216,7 @@ function HeaderContent({
   isAuthenticated,
   favoritesCount,
   cartItemsCount,
-  onSignOut
+  onRequestSignOut
 }: HeaderContentProps) {
   const isTopHeader = mode === "top";
 
@@ -239,7 +240,12 @@ function HeaderContent({
         </div>
 
         <div className="justify-self-end">
-          <HeaderMenu mode={mode} isAdmin={isAdmin} isAuthenticated={isAuthenticated} onSignOut={onSignOut} />
+          <HeaderMenu
+            mode={mode}
+            isAdmin={isAdmin}
+            isAuthenticated={isAuthenticated}
+            onRequestSignOut={onRequestSignOut}
+          />
         </div>
       </div>
     );
@@ -268,8 +274,13 @@ function HeaderContent({
         </div>
 
         <div className="ml-auto shrink-0">
-          <HeaderMenu mode={mode} isAdmin={isAdmin} isAuthenticated={isAuthenticated} onSignOut={onSignOut} />
-        </div>
+        <HeaderMenu
+          mode={mode}
+          isAdmin={isAdmin}
+          isAuthenticated={isAuthenticated}
+          onRequestSignOut={onRequestSignOut}
+        />
+      </div>
       </div>
 
       <HeaderNav
@@ -300,6 +311,7 @@ export function SiteHeader() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isFloatingVisible, setIsFloatingVisible] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const isFloatingVisibleRef = useRef(false);
 
   const lastScrollYRef = useRef(0);
@@ -417,6 +429,15 @@ export function SiteHeader() {
     router.push(`/buscar${nextParams.toString() ? `?${nextParams.toString()}` : ""}`);
   }
 
+  function handleRequestSignOut() {
+    setIsLogoutConfirmOpen(true);
+  }
+
+  async function handleConfirmSignOut() {
+    setIsLogoutConfirmOpen(false);
+    await signOut();
+  }
+
   return (
     <>
       <header
@@ -433,7 +454,7 @@ export function SiteHeader() {
           isAuthenticated={isAuthenticated}
           favoritesCount={favoritesCount}
           cartItemsCount={cartItemsCount}
-          onSignOut={() => void signOut()}
+          onRequestSignOut={handleRequestSignOut}
         />
       </header>
 
@@ -454,10 +475,20 @@ export function SiteHeader() {
             isAuthenticated={isAuthenticated}
             favoritesCount={favoritesCount}
             cartItemsCount={cartItemsCount}
-            onSignOut={() => void signOut()}
+            onRequestSignOut={handleRequestSignOut}
           />
         </div>
       </div>
+
+      <ConfirmationModal
+        open={isLogoutConfirmOpen}
+        title="Deseja realmente sair da sua conta?"
+        description="Voce sera desconectado desta sessao e podera entrar novamente quando quiser."
+        confirmLabel="Sair"
+        cancelLabel="Cancelar"
+        onConfirm={() => void handleConfirmSignOut()}
+        onCancel={() => setIsLogoutConfirmOpen(false)}
+      />
     </>
   );
 }
