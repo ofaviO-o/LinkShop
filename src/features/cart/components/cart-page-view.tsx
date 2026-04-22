@@ -33,6 +33,14 @@ export function CartPageView() {
     let active = true;
 
     async function loadCartItems() {
+      if (!session) {
+        if (active) {
+          setEntries([]);
+          setLoading(false);
+        }
+        return;
+      }
+
       if (!cart?.items.length) {
         if (active) {
           setEntries([]);
@@ -63,7 +71,7 @@ export function CartPageView() {
     return () => {
       active = false;
     };
-  }, [cart]);
+  }, [cart, session]);
 
   const estimatedCurrentTotal = useMemo(
     () =>
@@ -73,6 +81,33 @@ export function CartPageView() {
       }, 0),
     [entries]
   );
+
+  if (!session) {
+    return (
+      <section className="section-shell">
+        <div className="rounded-[1.75rem] bg-white p-8 text-center shadow-glow">
+          <h3 className="font-display text-3xl">Entre para ver seu carrinho.</h3>
+          <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-neutral-600">
+            Para salvar e visualizar produtos do carrinho com seguranca, faca login ou crie sua conta.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link
+              href="/auth?next=/lista"
+              className="inline-flex items-center justify-center rounded-full bg-coral px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
+            >
+              Entrar
+            </Link>
+            <Link
+              href="/buscar"
+              className="inline-flex items-center justify-center rounded-full bg-black/5 px-5 py-3 text-sm font-semibold text-ink transition hover:bg-black/10"
+            >
+              Explorar catalogo
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="section-shell">

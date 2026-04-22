@@ -46,6 +46,7 @@ type CartState = {
   syncCart: (payload: { ownerId: string }) => Promise<void>;
   mergeCart: (payload: { sourceOwnerId: string; targetOwnerId: string }) => void;
   clearCartByOwner: (ownerId: string) => Promise<void>;
+  clearLocalCartByOwner: (ownerId: string) => void;
 };
 
 function upsertCart(carts: Cart[], nextCart: Cart) {
@@ -279,7 +280,11 @@ export const useCartStore = create<CartState>()(
         set((state) => ({
           carts: upsertCart(state.carts, buildEmptyCart(ownerId))
         }));
-      }
+      },
+      clearLocalCartByOwner: (ownerId) =>
+        set((state) => ({
+          carts: upsertCart(state.carts, buildEmptyCart(ownerId))
+        }))
     }),
     {
       name: "linkshop-cart",

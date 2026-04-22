@@ -27,6 +27,14 @@ export function FavoritesPageView() {
     let active = true;
 
     async function loadFavorites() {
+      if (!session) {
+        if (active) {
+          setItems([]);
+          setLoading(false);
+        }
+        return;
+      }
+
       if (!favorites.length) {
         if (active) {
           setItems([]);
@@ -49,7 +57,34 @@ export function FavoritesPageView() {
     return () => {
       active = false;
     };
-  }, [favorites]);
+  }, [favorites, session]);
+
+  if (!session) {
+    return (
+      <section className="section-shell">
+        <div className="rounded-[1.75rem] bg-white p-8 text-center shadow-glow">
+          <h3 className="font-display text-3xl">Entre para ver seus favoritos.</h3>
+          <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-neutral-600">
+            Para salvar e visualizar produtos favoritos com seguranca, faca login ou crie sua conta.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link
+              href="/auth?next=/favoritos"
+              className="inline-flex items-center justify-center rounded-full bg-coral px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
+            >
+              Entrar
+            </Link>
+            <Link
+              href="/buscar"
+              className="inline-flex items-center justify-center rounded-full bg-black/5 px-5 py-3 text-sm font-semibold text-ink transition hover:bg-black/10"
+            >
+              Explorar catalogo
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="section-shell">

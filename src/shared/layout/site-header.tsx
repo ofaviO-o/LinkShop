@@ -305,8 +305,8 @@ export function SiteHeader() {
   const isAdmin = role === "admin";
   const isAuthenticated = Boolean(session);
   const ownerId = useMemo(() => getPreferenceOwnerId(session), [session]);
-  const favoritesCount = favorites.filter((favorite) => favorite.userId === ownerId).length;
-  const cart = carts.find((entry) => entry.ownerId === ownerId);
+  const favoritesCount = isAuthenticated ? favorites.filter((favorite) => favorite.userId === ownerId).length : 0;
+  const cart = isAuthenticated ? carts.find((entry) => entry.ownerId === ownerId) : null;
   const cartItemsCount = cart?.totalItems ?? 0;
 
   const [searchQuery, setSearchQuery] = useState("");

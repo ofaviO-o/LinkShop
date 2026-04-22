@@ -32,6 +32,16 @@ type AuthState = {
   clearError: () => void;
 };
 
+function clearLocalCollectionsByOwner(ownerId: string) {
+  useFavoritesStore.getState().clearFavoritesByUser(ownerId);
+  useCartStore.getState().clearLocalCartByOwner(ownerId);
+  usePriceWatchStore.getState().clearWatchesByOwner(ownerId);
+}
+
+function clearAnonymousCollections() {
+  clearLocalCollectionsByOwner(ANONYMOUS_OWNER_ID);
+}
+
 function mergeAnonymousDataIntoUser(session: AuthSession) {
   const targetUserId = session.user.id;
 
@@ -49,6 +59,8 @@ function mergeAnonymousDataIntoUser(session: AuthSession) {
     sourceOwnerId: ANONYMOUS_OWNER_ID,
     targetOwnerId: targetUserId
   });
+
+  clearAnonymousCollections();
 }
 
 async function syncAuthenticatedCollections(session: AuthSession) {
@@ -95,6 +107,8 @@ async function syncAnonymousStateIntoBackend(session: AuthSession) {
     ownerId: session.user.id,
     watches: response.data.priceWatches
   });
+
+  clearAnonymousCollections();
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -143,6 +157,7 @@ export const useAuthStore = create<AuthState>()(
       },
       restoreSession: async () => {
         const token = getStoredAccessToken() ?? get().session?.token;
+        const currentSession = get().session;
 
         if (!token) {
           if (isBackendIntegrationEnabled() && getStoredRefreshToken()) {
@@ -151,6 +166,9 @@ export const useAuthStore = create<AuthState>()(
 
             if (!refreshed.ok || !refreshed.data) {
               clearStoredAccessToken();
+              if (currentSession?.user.id) {
+                clearLocalCollectionsByOwner(currentSession.user.id);
+              }
               set({ session: null, status: "anonymous", error: null });
               return;
             }
@@ -167,6 +185,9 @@ export const useAuthStore = create<AuthState>()(
           }
 
           clearStoredAccessToken();
+          if (currentSession?.user.id) {
+            clearLocalCollectionsByOwner(currentSession.user.id);
+          }
           set({ status: "anonymous" });
           return;
         }
@@ -176,6 +197,9 @@ export const useAuthStore = create<AuthState>()(
 
         if (!response.ok || !response.data) {
           clearStoredAccessToken();
+          if (currentSession?.user.id) {
+            clearLocalCollectionsByOwner(currentSession.user.id);
+          }
           set({ session: null, status: "anonymous", error: null });
           return;
         }
@@ -184,10 +208,18 @@ export const useAuthStore = create<AuthState>()(
         set({ session: response.data, status: "authenticated", error: null });
       },
       signOut: async () => {
+        const currentSession = get().session;
         set({ status: "loading" });
-        await authService.signOut();
-        clearStoredAccessToken();
-        set({ session: null, status: "anonymous", error: null });
+        try {
+          await authService.signOut();
+        } finally {
+          clearStoredAccessToken();
+          if (currentSession?.user.id) {
+            clearLocalCollectionsByOwner(currentSession.user.id);
+          }
+          clearAnonymousCollections();
+          set({ session: null, status: "anonymous", error: null });
+        }
       },
       clearError: () => set({ error: null, status: get().session ? "authenticated" : "anonymous" })
     }),
