@@ -77,6 +77,9 @@ export default async function ProductOfferPage({ params }: ProductOfferPageProps
   const bestOffer = bestOfferResponse.data;
   const potentialSavings = Math.max(item.highestPrice - item.lowestPrice, 0);
   const bestDiffersFromLowest = bestOffer ? bestOffer.price !== item.lowestPrice : false;
+  const productDescription = item.product.description.trim() || "Detalhes completos deste produto em atualizacao.";
+  const productBrand = item.product.brand.trim() || "Marca nao informada";
+  const productCategory = item.product.category.trim() || "Categoria nao informada";
 
   return (
     <>
@@ -85,7 +88,7 @@ export default async function ProductOfferPage({ params }: ProductOfferPageProps
         <SectionHeading
           eyebrow="Produto"
           title={item.product.name}
-          description="Analise rapidamente a melhor oferta, confira o menor preco do mercado e avance para a loja com mais confianca."
+          description="Entenda o produto, veja a oferta recomendada com clareza e compare as alternativas antes de sair para a loja."
           action={
             <div className="grid gap-2 rounded-[1.5rem] bg-white px-5 py-4 text-sm text-neutral-500 shadow-glow">
               <span>{offersResponse.data.length} ofertas encontradas</span>
@@ -107,20 +110,9 @@ export default async function ProductOfferPage({ params }: ProductOfferPageProps
       </section>
 
       <section className="section-shell">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-          <ProductPriceHistory summary={priceHistoryResponse.data} currentPriceFallback={item.lowestPrice} />
-          <PriceWatchSettingsCard
-            productId={item.product.id}
-            productName={item.product.name}
-            currentPrice={item.lowestPrice}
-          />
-        </div>
-      </section>
-
-      <section className="section-shell">
         <SectionHeading
           eyebrow="Ofertas"
-          title="Comparacao entre marketplaces"
+          title="Compare as ofertas antes de decidir"
           description={
             bestOffer
               ? `A melhor oportunidade atual esta em ${getStoreDisplayName(bestOffer.storeId)}${
@@ -145,6 +137,60 @@ export default async function ProductOfferPage({ params }: ProductOfferPageProps
             sectionType: "lista_ofertas_produto"
           }}
         />
+      </section>
+
+      <section className="section-shell">
+        <SectionHeading
+          eyebrow="Detalhes"
+          title="Detalhes do produto e acompanhamento"
+          description="Aqui ficam as informacoes complementares para aprofundar a decisao depois de entender a melhor oferta e comparar os marketplaces."
+        />
+
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <article className="rounded-[2rem] bg-white p-6 shadow-glow md:p-8">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-[1.25rem] bg-black/5 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">Marca</p>
+                <p className="mt-2 font-semibold text-ink">{productBrand}</p>
+              </div>
+              <div className="rounded-[1.25rem] bg-black/5 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">Categoria</p>
+                <p className="mt-2 font-semibold text-ink">{productCategory}</p>
+              </div>
+              <div className="rounded-[1.25rem] bg-black/5 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">Ofertas monitoradas</p>
+                <p className="mt-2 font-semibold text-ink">{offersResponse.data.length} lojas</p>
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-[1.5rem] border border-black/5 bg-neutral-50 p-5">
+              <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-coral">Sobre este produto</p>
+              <p className="mt-4 text-sm leading-8 text-neutral-600">{productDescription}</p>
+            </div>
+
+            <div className="mt-6 rounded-[1.5rem] border border-black/5 bg-white p-5">
+              <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-coral">Leitura da recomendacao</p>
+              <div className="mt-4 grid gap-3 text-sm leading-7 text-neutral-600">
+                <p>
+                  Melhor oferta atual: {bestOffer ? formatPrice(bestOffer.price) : formatPrice(item.lowestPrice)} em{" "}
+                  {bestOffer ? getStoreDisplayName(bestOffer.storeId) : "loja em atualizacao"}.
+                </p>
+                <p>Menor preco bruto encontrado: {formatPrice(item.lowestPrice)}.</p>
+                <p>Maior preco encontrado: {formatPrice(item.highestPrice, "Nao informado")}.</p>
+                {bestOffer?.rankingReason ? <p>Motivo resumido do ranking: {bestOffer.rankingReason}</p> : null}
+              </div>
+            </div>
+          </article>
+
+          <div className="grid gap-6">
+            <ProductPriceHistory summary={priceHistoryResponse.data} currentPriceFallback={item.lowestPrice} />
+            <PriceWatchSettingsCard
+              productId={item.product.id}
+              productName={item.product.name}
+              currentPrice={item.lowestPrice}
+            />
+          </div>
+        </div>
       </section>
     </>
   );

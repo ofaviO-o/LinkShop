@@ -88,8 +88,8 @@ export function OfferList({ offers, bestOfferId, context }: OfferListProps) {
                 : "border-black/5 bg-white"
             }`}
           >
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="space-y-3">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div className="space-y-4 xl:min-w-0 xl:flex-1">
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
                   <span className="rounded-full bg-lagoon/10 px-3 py-1 text-lagoon">{getStoreDisplayName(offer.storeId)}</span>
                   {isBestOffer ? (
@@ -118,28 +118,46 @@ export function OfferList({ offers, bestOfferId, context }: OfferListProps) {
                   <p className="mt-1 text-sm text-neutral-500">Vendido por {sellerName}</p>
                 </div>
 
-                <div className="grid gap-1 text-sm text-neutral-500">
-                  <span>{offer.installmentText ?? "Pagamento a vista"}</span>
-                  <span>Frete: {offer.shippingCost != null ? formatPrice(offer.shippingCost) : "Consultar na loja"}</span>
-                  <span>Atualizada em: {updatedAt}</span>
-                  {isBestOffer && offer.rankingReason ? <span className="line-clamp-2">{offer.rankingReason}</span> : null}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[1rem] bg-black/5 px-4 py-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-neutral-500">Condicao</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{offer.installmentText ?? "Pagamento a vista"}</p>
+                  </div>
+                  <div className="rounded-[1rem] bg-black/5 px-4 py-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-neutral-500">Frete</p>
+                    <p className="mt-2 text-sm font-medium text-ink">
+                      {offer.shippingCost != null ? formatPrice(offer.shippingCost) : "Consultar na loja"}
+                    </p>
+                  </div>
+                  <div className="rounded-[1rem] bg-black/5 px-4 py-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-neutral-500">Atualizacao</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{updatedAt}</p>
+                  </div>
                 </div>
+
+                {isBestOffer && offer.rankingReason ? (
+                  <div className="rounded-[1rem] border border-coral/20 bg-coral/5 px-4 py-3 text-sm text-neutral-600">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-coral">Motivo da recomendacao</p>
+                    <p className="mt-2 line-clamp-2">{offer.rankingReason}</p>
+                  </div>
+                ) : null}
               </div>
 
-              <div className="grid gap-3 md:min-w-[240px] md:justify-items-end">
-                <div className={`rounded-2xl px-4 py-3 text-right ${isBestOffer ? "bg-coral/10" : "bg-black/5"}`}>
-                  <div className="flex items-end justify-end gap-3">
+              <div className="grid gap-3 xl:min-w-[270px] xl:max-w-[270px] xl:justify-items-end">
+                <div className={`w-full rounded-2xl px-4 py-4 text-left xl:text-right ${isBestOffer ? "bg-coral/10" : "bg-black/5"}`}>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">Preco final</p>
+                  <div className="mt-3 flex items-end gap-3 xl:justify-end">
                     <strong className="font-display text-3xl">{formatPrice(offer.price)}</strong>
                     {offer.originalPrice ? (
                       <span className="text-sm text-neutral-400 line-through">{formatPrice(offer.originalPrice, "")}</span>
                     ) : null}
                   </div>
-                  <p className="mt-2 text-sm text-neutral-500">
+                  <p className="mt-3 text-sm text-neutral-500">
                     {isBestOffer
-                      ? "Escolhida como melhor combinacao de preco e qualidade."
+                      ? "Escolhida como melhor combinacao de preco, qualidade e disponibilidade."
                       : isLowestPrice
                         ? "Este e o menor preco bruto atual."
-                        : "Compare antes de sair para a loja."}
+                        : "Compare com a recomendada antes de sair para a loja."}
                   </p>
                 </div>
 
@@ -159,7 +177,7 @@ export function OfferList({ offers, bestOfferId, context }: OfferListProps) {
                 >
                   Ir para oferta na {getStoreDisplayName(offer.storeId)}
                 </a>
-                <p className="text-xs text-neutral-500">Nova aba com redirecionamento de parceiro.</p>
+                <p className="text-xs text-neutral-500 xl:text-right">Nova aba com redirecionamento de parceiro.</p>
               </div>
             </div>
           </article>
