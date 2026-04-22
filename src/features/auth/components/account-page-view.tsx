@@ -5,8 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { catalogService } from "@/features/catalog/services/catalog.service";
 import type { CatalogItem } from "@/features/catalog/types/catalog.types";
-import { useAuthStore, useCartStore, useFavoritesStore } from "@/stores";
-import { usePriceWatchStore } from "@/stores";
+import { useAuthStore, useCartStore, useFavoritesStore, usePriceWatchStore, useRecentViewsStore } from "@/stores";
 import type { CartItem } from "@/features/cart/types/cart.types";
 import { getPreferenceOwnerId } from "@/shared/lib/identity";
 import { SectionHeading } from "@/shared/ui/section-heading";
@@ -15,7 +14,7 @@ import { formatCurrency } from "@/shared/lib/format";
 import { getStoreDisplayName } from "@/shared/lib/store";
 import { ConfirmationModal } from "@/shared/ui/confirmation-modal";
 
-type AccountTab = "overview" | "favorites" | "cart" | "settings";
+type AccountTab = "overview" | "favorites" | "cart" | "recent" | "settings";
 
 type CartEntry = {
   cartItem: CartItem;
@@ -26,6 +25,7 @@ const accountTabs: Array<{ id: AccountTab; label: string }> = [
   { id: "overview", label: "Visao geral" },
   { id: "favorites", label: "Favoritos" },
   { id: "cart", label: "Carrinho" },
+  { id: "recent", label: "Recentes" },
   { id: "settings", label: "Configuracoes" }
 ];
 
@@ -70,6 +70,7 @@ export function AccountPageView() {
   const removeItem = useCartStore((state) => state.removeItem);
   const clearCartByOwner = useCartStore((state) => state.clearCartByOwner);
   const watches = usePriceWatchStore((state) => state.watches);
+  const recentViews = useRecentViewsStore((state) => state.recentViews);
 
   const ownerId = useMemo(() => getPreferenceOwnerId(session), [session]);
   const userFavorites = useMemo(
@@ -84,12 +85,21 @@ export function AccountPageView() {
     () => watches.filter((watch) => watch.ownerId === ownerId && watch.isActive).length,
     [ownerId, watches]
   );
+  const userRecentViews = useMemo(
+    () =>
+      recentViews
+        .filter((entry) => entry.ownerId === ownerId)
+        .sort((left, right) => new Date(right.viewedAt).getTime() - new Date(left.viewedAt).getTime()),
+    [ownerId, recentViews]
+  );
 
   const [activeTab, setActiveTab] = useState<AccountTab>("overview");
   const [favoriteItems, setFavoriteItems] = useState<CatalogItem[]>([]);
   const [cartEntries, setCartEntries] = useState<CartEntry[]>([]);
+  const [recentItems, setRecentItems] = useState<CatalogItem[]>([]);
   const [favoritesLoading, setFavoritesLoading] = useState(false);
   const [cartLoading, setCartLoading] = useState(false);
+  const [recentLoading, setRecentLoading] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
 
   useEffect(() => {
@@ -157,6 +167,36 @@ export function AccountPageView() {
       active = false;
     };
   }, [session, userCart]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadRecentItems() {
+      if (!session || !userRecentViews.length) {
+        if (active) {
+          setRecentItems([]);
+          setRecentLoading(false);
+        }
+        return;
+      }
+
+      setRecentLoading(true);
+      const recentProductIds = userRecentViews.map((entry) => entry.productId);
+      const response = await catalogService.getCatalogItemsByProductIds(recentProductIds);
+
+      if (active) {
+        const itemsByProductId = new Map((response.ok ? response.data : []).map((item) => [item.product.id, item] as const));
+        setRecentItems(recentProductIds.map((productId) => itemsByProductId.get(productId) ?? null).filter(Boolean) as CatalogItem[]);
+        setRecentLoading(false);
+      }
+    }
+
+    void loadRecentItems();
+
+    return () => {
+      active = false;
+    };
+  }, [session, userRecentViews]);
 
   const estimatedCurrentTotal = useMemo(
     () =>
@@ -249,60 +289,113 @@ export function AccountPageView() {
 
       <div className="mt-6">
         {activeTab === "overview" ? (
-          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-            <article className="rounded-[1.75rem] bg-white p-5 shadow-glow">
-              <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-coral">Favoritos</p>
-              <p className="mt-4 font-display text-4xl text-ink">{userFavorites.length}</p>
-              <p className="mt-2 text-sm text-neutral-500">Produtos salvos para comparar depois.</p>
-              <button
-                type="button"
-                onClick={() => setActiveTab("favorites")}
-                className="mt-5 inline-flex items-center rounded-full bg-black/5 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-black/10"
-              >
-                Abrir favoritos
-              </button>
-            </article>
+          <div className="grid gap-4">
+            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-5">
+              <article className="rounded-[1.75rem] bg-white p-5 shadow-glow">
+                <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-coral">Favoritos</p>
+                <p className="mt-4 font-display text-4xl text-ink">{userFavorites.length}</p>
+                <p className="mt-2 text-sm text-neutral-500">Produtos salvos para comparar depois.</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("favorites")}
+                  className="mt-5 inline-flex items-center rounded-full bg-black/5 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-black/10"
+                >
+                  Abrir favoritos
+                </button>
+              </article>
 
-            <article className="rounded-[1.75rem] bg-white p-5 shadow-glow">
-              <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-coral">Carrinho</p>
-              <p className="mt-4 font-display text-4xl text-ink">{userCart?.totalItems ?? 0}</p>
-              <p className="mt-2 text-sm text-neutral-500">Itens em acompanhamento no seu carrinho.</p>
-              <button
-                type="button"
-                onClick={() => setActiveTab("cart")}
-                className="mt-5 inline-flex items-center rounded-full bg-black/5 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-black/10"
-              >
-                Abrir carrinho
-              </button>
-            </article>
+              <article className="rounded-[1.75rem] bg-white p-5 shadow-glow">
+                <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-coral">Carrinho</p>
+                <p className="mt-4 font-display text-4xl text-ink">{userCart?.totalItems ?? 0}</p>
+                <p className="mt-2 text-sm text-neutral-500">Itens em acompanhamento no seu carrinho.</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("cart")}
+                  className="mt-5 inline-flex items-center rounded-full bg-black/5 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-black/10"
+                >
+                  Abrir carrinho
+                </button>
+              </article>
 
-            <article className="rounded-[1.75rem] bg-white p-5 shadow-glow">
-              <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-coral">Alertas</p>
-              <p className="mt-4 font-display text-4xl text-ink">{userWatchCount}</p>
-              <p className="mt-2 text-sm text-neutral-500">Produtos com acompanhamento de preco ativo.</p>
-              <button
-                type="button"
-                onClick={() => setActiveTab("settings")}
-                className="mt-5 inline-flex items-center rounded-full bg-black/5 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-black/10"
-              >
-                Ver configuracoes
-              </button>
-            </article>
+              <article className="rounded-[1.75rem] bg-white p-5 shadow-glow">
+                <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-coral">Recentes</p>
+                <p className="mt-4 font-display text-4xl text-ink">{userRecentViews.length}</p>
+                <p className="mt-2 text-sm text-neutral-500">Produtos vistos recentemente para retomar rapido.</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("recent")}
+                  className="mt-5 inline-flex items-center rounded-full bg-black/5 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-black/10"
+                >
+                  Ver recentes
+                </button>
+              </article>
 
-            <article className="rounded-[1.75rem] bg-gradient-to-br from-ink via-neutral-900 to-lagoon p-5 text-white shadow-glow">
-              <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-white/70">Conta</p>
-              <p className="mt-4 font-display text-3xl">Perfil pronto para evoluir.</p>
-              <p className="mt-2 text-sm text-white/75">
-                Ajuste suas preferencias e acompanhe tudo em um unico lugar.
-              </p>
-              <button
-                type="button"
-                onClick={() => setActiveTab("settings")}
-                className="mt-5 inline-flex items-center rounded-full bg-white/12 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/18"
-              >
-                Abrir configuracoes
-              </button>
-            </article>
+              <article className="rounded-[1.75rem] bg-white p-5 shadow-glow">
+                <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-coral">Alertas</p>
+                <p className="mt-4 font-display text-4xl text-ink">{userWatchCount}</p>
+                <p className="mt-2 text-sm text-neutral-500">Produtos com acompanhamento de preco ativo.</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("settings")}
+                  className="mt-5 inline-flex items-center rounded-full bg-black/5 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-black/10"
+                >
+                  Ver configuracoes
+                </button>
+              </article>
+
+              <article className="rounded-[1.75rem] bg-gradient-to-br from-ink via-neutral-900 to-lagoon p-5 text-white shadow-glow">
+                <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-white/70">Conta</p>
+                <p className="mt-4 font-display text-3xl">Continue de onde parou.</p>
+                <p className="mt-2 text-sm text-white/75">
+                  Retome produtos vistos, volte ao carrinho e ajuste sua conta em um unico lugar.
+                </p>
+                <Link
+                  href="/buscar"
+                  className="mt-5 inline-flex items-center rounded-full bg-white/12 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/18"
+                >
+                  Continuar navegando
+                </Link>
+              </article>
+            </div>
+
+            <div className="rounded-[2rem] bg-white p-5 shadow-glow md:p-6">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-display text-3xl text-ink">Vistos recentemente</h3>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    Produtos que voce abriu por ultimo para retomar a comparacao sem perder contexto.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("recent")}
+                  className="inline-flex items-center rounded-full bg-black/5 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-black/10"
+                >
+                  Ver tudo
+                </button>
+              </div>
+
+              {recentLoading ? (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className="overflow-hidden rounded-[1.5rem] bg-black/5 p-4">
+                      <div className="aspect-square rounded-[1rem] bg-black/10" />
+                      <div className="mt-4 h-5 w-3/4 rounded-full bg-black/10" />
+                      <div className="mt-2 h-4 w-1/2 rounded-full bg-black/10" />
+                    </div>
+                  ))}
+                </div>
+              ) : recentItems.length ? (
+                <CatalogGrid items={recentItems.slice(0, 4)} variant="compact" />
+              ) : (
+                <EmptyTabState
+                  title="Nenhum produto visto recentemente."
+                  description="Abra produtos durante a navegacao e eles vao aparecer aqui para facilitar a retomada."
+                  primaryHref="/buscar"
+                  primaryLabel="Explorar catalogo"
+                />
+              )}
+            </div>
           </div>
         ) : null}
 
@@ -448,6 +541,43 @@ export function AccountPageView() {
                 description="Adicione produtos durante a navegacao para acompanhar quantidade, preco e melhor loja."
                 primaryHref="/buscar"
                 primaryLabel="Montar meu carrinho"
+              />
+            )}
+          </div>
+        ) : null}
+
+        {activeTab === "recent" ? (
+          <div className="rounded-[2rem] bg-white p-5 shadow-glow md:p-6">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-display text-3xl text-ink">Vistos recentemente</h3>
+                <p className="mt-1 text-sm text-neutral-500">
+                  Retome rapidamente os produtos que voce abriu por ultimo no comparador.
+                </p>
+              </div>
+              <span className="rounded-full bg-black/5 px-4 py-2 text-sm text-neutral-600">
+                {userRecentViews.length} produtos recentes
+              </span>
+            </div>
+
+            {recentLoading ? (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="overflow-hidden rounded-[1.5rem] bg-black/5 p-4">
+                    <div className="aspect-square rounded-[1rem] bg-black/10" />
+                    <div className="mt-4 h-5 w-3/4 rounded-full bg-black/10" />
+                    <div className="mt-2 h-4 w-1/2 rounded-full bg-black/10" />
+                  </div>
+                ))}
+              </div>
+            ) : recentItems.length ? (
+              <CatalogGrid items={recentItems} variant="compact" />
+            ) : (
+              <EmptyTabState
+                title="Nenhum produto recente ainda."
+                description="Quando voce abrir produtos no LinkShop, eles vao aparecer aqui para voce retomar depois."
+                primaryHref="/buscar"
+                primaryLabel="Explorar catalogo"
               />
             )}
           </div>

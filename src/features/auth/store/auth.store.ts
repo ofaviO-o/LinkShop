@@ -9,6 +9,7 @@ import type { AuthSession, SignInInput, SignUpInput } from "@/features/auth/type
 import { useCartStore } from "@/features/cart/store/cart.store";
 import { useFavoritesStore } from "@/features/favorites/store/favorites.store";
 import { usePriceWatchStore } from "@/features/price-alerts/store/price-watch.store";
+import { useRecentViewsStore } from "@/features/recent-views/store/recent-views.store";
 import { isBackendIntegrationEnabled } from "@/shared/api/api-config";
 import {
   clearStoredAccessToken,
@@ -36,6 +37,7 @@ function clearLocalCollectionsByOwner(ownerId: string) {
   useFavoritesStore.getState().clearFavoritesByUser(ownerId);
   useCartStore.getState().clearLocalCartByOwner(ownerId);
   usePriceWatchStore.getState().clearWatchesByOwner(ownerId);
+  useRecentViewsStore.getState().clearRecentViewsByOwner(ownerId);
 }
 
 function clearAnonymousCollections() {

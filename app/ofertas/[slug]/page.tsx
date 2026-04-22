@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { catalogService } from "@/features/catalog/services/catalog.service";
 import { OfferList, offersService } from "@/features/offers";
 import { PriceWatchSettingsCard } from "@/features/price-alerts";
-import { ProductPriceHistory, ProductSummary } from "@/features/product";
+import { ProductPriceHistory, ProductSummary, RecentProductViewTracker } from "@/features/product";
 import { formatPrice } from "@/shared/lib/format";
 import { getStoreDisplayName } from "@/shared/lib/store";
 import { SectionHeading } from "@/shared/ui/section-heading";
@@ -81,6 +81,7 @@ export default async function ProductOfferPage({ params }: ProductOfferPageProps
   return (
     <>
       <section className="section-shell">
+        <RecentProductViewTracker productId={item.product.id} />
         <SectionHeading
           eyebrow="Produto"
           title={item.product.name}
