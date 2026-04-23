@@ -31,6 +31,8 @@ class MercadoLivreSearchContext:
 class MercadoLivreCatalogProvider(BaseCatalogProvider):
     provider_name = "mercado-livre-catalog"
     marketplace = "mercado-livre"
+    _MIN_SEARCH_FETCH_LIMIT = 30
+    _MAX_SEARCH_FETCH_LIMIT = 50
     _ACCESSORY_TERMS = {
         "acessorio",
         "acessorios",
@@ -69,11 +71,12 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             raise BusinessRuleError("Query is required to search Mercado Livre catalog", code="CATALOG_QUERY_REQUIRED")
 
         requested_limit = max(1, min(limit, 50))
+        fetch_limit = self._build_search_fetch_limit(requested_limit)
         search_context = self._discover_search_context(normalized_query, access_token=access_token)
         catalog_items: list[CatalogSearchItem] = []
         if access_token:
             catalog_payload = self._get_json(
-                f"/products/search?status=active&site_id={settings.mercado_livre_site_id}&q={quote(normalized_query)}&limit={max(requested_limit * 3, 30)}",
+                f"/products/search?status=active&site_id={settings.mercado_livre_site_id}&q={quote(normalized_query)}&limit={fetch_limit}",
                 access_token=access_token,
             )
             catalog_items = self._parse_catalog_product_search_results(catalog_payload)
@@ -81,7 +84,7 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
         marketplace_items: list[CatalogSearchItem] = []
         try:
             marketplace_payload = self._get_json(
-                f"/sites/{settings.mercado_livre_site_id}/search?q={quote(normalized_query)}&limit={max(requested_limit * 3, 30)}",
+                f"/sites/{settings.mercado_livre_site_id}/search?q={quote(normalized_query)}&limit={fetch_limit}",
                 access_token=access_token,
             )
         except ExternalServiceError as exc:
@@ -420,6 +423,12 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
         normalized_message = exc.message.lower()
         marketplace_search_path = f"/sites/{settings.mercado_livre_site_id.lower()}/search"
         return "http 403" in normalized_message and marketplace_search_path in normalized_message
+
+    def _build_search_fetch_limit(self, requested_limit: int) -> int:
+        return max(
+            self._MIN_SEARCH_FETCH_LIMIT,
+            min(max(requested_limit * 2, requested_limit), self._MAX_SEARCH_FETCH_LIMIT),
+        )
 
     def _normalize_http_error_text(self, value: str) -> str:
         normalized = re.sub(r"\s+", " ", value).strip()

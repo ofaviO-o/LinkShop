@@ -320,6 +320,37 @@ def test_mercado_livre_search_uses_catalog_products_endpoint_when_token_exists(m
     assert result.items[0].title == "iPhone 13 128 GB Azul"
 
 
+def test_mercado_livre_search_caps_upstream_fetch_limit_for_large_preview_requests(monkeypatch) -> None:
+    provider = MercadoLivreCatalogProvider()
+    requested_paths: list[str] = []
+
+    def fake_get_json(path: str, *, access_token: str | None = None) -> dict:
+        assert access_token == "token"
+        requested_paths.append(path)
+
+        if path.startswith("/sites/MLB/domain_discovery/search?"):
+            return [{"domain_id": "MLB-CELLPHONES", "category_id": "MLB1055"}]
+
+        if path.startswith("/products/search?"):
+            return {"results": []}
+
+        if path.startswith("/sites/MLB/search?"):
+            raise ExternalServiceError(
+                "Mercado Livre API rejected catalog request with HTTP 403 on /sites/MLB/search. Mercado Livre response: forbidden",
+                code="MERCADO_LIVRE_HTTP_ERROR",
+                status_code=502,
+            )
+
+        raise AssertionError(f"Unexpected path: {path}")
+
+    monkeypatch.setattr(provider, "_get_json", fake_get_json)
+
+    provider.search_products(query="iphone 13", limit=48, access_token="token")
+
+    product_search_path = next(path for path in requested_paths if path.startswith("/products/search?"))
+    assert "limit=50" in product_search_path
+
+
 def test_mercado_livre_search_uses_catalog_results_when_marketplace_search_is_forbidden(monkeypatch) -> None:
     provider = MercadoLivreCatalogProvider()
 
