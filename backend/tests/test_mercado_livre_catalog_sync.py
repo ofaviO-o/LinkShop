@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import ExternalServiceError
+from app.core.exceptions import ExternalServiceError, NotFoundError
 from app.integrations.catalog.mercado_livre_provider import MercadoLivreCatalogProvider
 from app.integrations.catalog.types import (
     CatalogOfferPayload,
@@ -18,6 +18,7 @@ from app.integrations.catalog.types import (
 from app.models.offer import Offer
 from app.models.product import Product
 from app.services.mercado_livre_catalog_sync_service import MercadoLivreCatalogSyncService
+from app.services.admin_product_import_service import AdminProductImportService
 from tests.factories import build_user
 
 
@@ -187,3 +188,105 @@ def test_mercado_livre_provider_http_error_becomes_structured_external_error(
         assert "HTTP 403" in exc.message
     else:
         raise AssertionError("Expected ExternalServiceError")
+
+
+def test_resolve_mercado_livre_reference_from_catalog_product_url(monkeypatch) -> None:
+    monkeypatch.setattr(
+        AdminProductImportService,
+        "_fetch_html_with_redirects",
+        staticmethod(lambda url: ('<html><body>ok</body></html>', "https://www.mercadolivre.com.br/iphone-13-128-gb-azul/p/MLB18500846")),
+    )
+    monkeypatch.setattr(
+        AdminProductImportService,
+        "_resolve_mercado_livre_social_destination",
+        staticmethod(lambda *, resolved_url, html: (html, resolved_url)),
+    )
+
+    resolved_url, reference_id, reference_type = AdminProductImportService.resolve_mercado_livre_reference(
+        "https://www.mercadolivre.com.br/iphone-13-128-gb-azul/p/MLB18500846"
+    )
+
+    assert resolved_url.endswith("/p/MLB18500846")
+    assert reference_id == "MLB18500846"
+    assert reference_type == "product"
+
+
+def test_mercado_livre_provider_falls_back_to_catalog_product_when_item_lookup_fails(monkeypatch) -> None:
+    provider = MercadoLivreCatalogProvider()
+    expected_payload = CatalogProductPayload(
+        marketplace="mercado-livre",
+        external_id="MLB18500846",
+        title="iPhone 13 128 GB Azul",
+        category_id=None,
+        category_name="MLB-CELLPHONES",
+        thumbnail_url="https://http2.mlstatic.com/catalog.jpg",
+        canonical_url="https://www.mercadolivre.com.br/iphone-13-128-gb-azul/p/MLB18500846",
+        brand="Apple",
+        condition="new",
+        currency_id="BRL",
+        description="Descricao de catalogo",
+        is_active=True,
+        last_synced_at=datetime.now(timezone.utc),
+        offers=[
+            CatalogOfferPayload(
+                marketplace="mercado-livre",
+                external_id="MLB111222333",
+                seller_id="123",
+                seller_name="Loja Oficial",
+                title="iPhone 13 128 GB Azul",
+                price=Decimal("4299.00"),
+                original_price=Decimal("4599.00"),
+                product_url="https://www.mercadolivre.com.br/iphone-13-128-gb-azul/p/MLB18500846",
+                available_quantity=3,
+                status="active",
+                condition="new",
+                currency_id="BRL",
+                is_active=True,
+                fetched_at=datetime.now(timezone.utc),
+            )
+        ],
+    )
+
+    monkeypatch.setattr(
+        provider,
+        "_fetch_item_details",
+        lambda *, reference, product_url, access_token: (_ for _ in ()).throw(
+            NotFoundError("Mercado Livre item or catalog product was not found", code="MERCADO_LIVRE_ITEM_NOT_FOUND")
+        ),
+    )
+    monkeypatch.setattr(
+        provider,
+        "_fetch_catalog_product_details",
+        lambda *, reference, product_url, access_token: expected_payload,
+    )
+
+    payload = provider.fetch_product_details(external_id="MLB18500846", access_token="token")
+
+    assert payload.external_id == "MLB18500846"
+    assert payload.offers[0].external_id == "MLB111222333"
+
+
+def test_mercado_livre_search_uses_catalog_products_endpoint_when_token_exists(monkeypatch) -> None:
+    provider = MercadoLivreCatalogProvider()
+
+    def fake_get_json(path: str, *, access_token: str | None = None) -> dict:
+        assert access_token == "token"
+        assert path.startswith("/products/search?")
+        return {
+            "results": [
+                {
+                    "id": "MLB18500846",
+                    "name": "iPhone 13 128 GB Azul",
+                    "domain_id": "MLB-CELLPHONES",
+                    "attributes": [{"id": "BRAND", "name": "Marca", "value_name": "Apple"}],
+                    "permalink": "https://www.mercadolivre.com.br/iphone-13-128-gb-azul/p/MLB18500846",
+                }
+            ]
+        }
+
+    monkeypatch.setattr(provider, "_get_json", fake_get_json)
+
+    result = provider.search_products(query="iphone 13", limit=5, access_token="token")
+
+    assert result.items[0].external_id == "MLB18500846"
+    assert result.items[0].title == "iPhone 13 128 GB Azul"

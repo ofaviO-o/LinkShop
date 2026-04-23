@@ -61,6 +61,31 @@ class AdminProductImportService:
         )
 
     @staticmethod
+    def resolve_mercado_livre_reference(url: str) -> tuple[str, str, str]:
+        source_url = AdminProductImportService._normalize_input_url(url)
+        html, resolved_url = AdminProductImportService._fetch_html_with_redirects(source_url)
+        provider = AdminProductImportService._detect_provider(resolved_url)
+
+        if provider != "mercado-livre":
+            raise BusinessRuleError(
+                "Provider not supported yet. Use a Mercado Livre product URL.",
+                code="IMPORT_PROVIDER_NOT_SUPPORTED",
+            )
+
+        html, resolved_url = AdminProductImportService._resolve_mercado_livre_social_destination(
+            resolved_url=resolved_url,
+            html=html,
+        )
+        reference_id, reference_type = AdminProductImportService._extract_mercado_livre_reference(resolved_url, html)
+        if not reference_id:
+            raise BusinessRuleError(
+                "Could not resolve a Mercado Livre item or catalog product id from URL",
+                code="CATALOG_ITEM_ID_NOT_FOUND",
+            )
+
+        return resolved_url, reference_id, reference_type
+
+    @staticmethod
     def import_batch(db: Session, payload: AdminProductImportBatchInput) -> AdminProductImportBatchRead:
         results: list[AdminProductImportBatchItemRead] = []
         counters = {
@@ -542,17 +567,47 @@ class AdminProductImportService:
 
     @staticmethod
     def _extract_external_id(url: str, html: str) -> str | None:
-        url_match = re.search(r"(MLB[-]?\d+)", url, flags=re.IGNORECASE)
+        reference_id, _ = AdminProductImportService._extract_mercado_livre_reference(url, html)
+        return reference_id
+
+    @staticmethod
+    def _extract_mercado_livre_reference(url: str, html: str) -> tuple[str | None, str]:
+        product_match = re.search(r"/p/([A-Z]{3}[-_]?\d+)", url, flags=re.IGNORECASE)
+        if product_match:
+            return AdminProductImportService._normalize_mercado_livre_reference(product_match.group(1)), "product"
+
+        url_match = re.search(r"/([A-Z]{3}[-_]?\d+)(?:[/?#-]|$)", url, flags=re.IGNORECASE)
         if url_match:
-            raw = url_match.group(1).upper().replace("MLB", "MLB-")
-            return raw if raw.startswith("MLB-") else f"MLB-{raw[3:]}"
+            return AdminProductImportService._normalize_mercado_livre_reference(url_match.group(1)), "item"
 
-        html_match = re.search(r"(MLB[-]?\d+)", html, flags=re.IGNORECASE)
+        product_html_match = re.search(r'"product_id"\s*:\s*"([A-Z]{3}[-_]?\d+)"', html, flags=re.IGNORECASE)
+        if product_html_match:
+            return AdminProductImportService._normalize_mercado_livre_reference(product_html_match.group(1)), "product"
+
+        catalog_html_match = re.search(
+            r'"catalog_product_id"\s*:\s*"([A-Z]{3}[-_]?\d+)"',
+            html,
+            flags=re.IGNORECASE,
+        )
+        if catalog_html_match:
+            return AdminProductImportService._normalize_mercado_livre_reference(catalog_html_match.group(1)), "product"
+
+        html_match = re.search(r'"item_id"\s*:\s*"([A-Z]{3}[-_]?\d+)"', html, flags=re.IGNORECASE)
         if html_match:
-            raw = html_match.group(1).upper().replace("MLB", "MLB-")
-            return raw if raw.startswith("MLB-") else f"MLB-{raw[3:]}"
+            return AdminProductImportService._normalize_mercado_livre_reference(html_match.group(1)), "item"
 
-        return None
+        generic_match = re.search(r"([A-Z]{3}[-_]?\d+)", html, flags=re.IGNORECASE)
+        if generic_match:
+            return AdminProductImportService._normalize_mercado_livre_reference(generic_match.group(1)), "item"
+
+        return None, "item"
+
+    @staticmethod
+    def _normalize_mercado_livre_reference(value: str) -> str | None:
+        match = re.search(r"([A-Z]{3})[-_]?(\d+)", value.strip().upper())
+        if not match:
+            return None
+        return f"{match.group(1)}{match.group(2)}"
 
     @staticmethod
     def _extract_name(product_json: dict, meta: dict[str, str]) -> str | None:
