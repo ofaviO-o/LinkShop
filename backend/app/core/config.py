@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     integration_json_feed_path: str = "backend/app/integrations/fixtures/sample_partner_feed.json"
     mercado_livre_api_base_url: str = "https://api.mercadolibre.com"
-    mercado_livre_auth_base_url: str = "https://auth.mercadolibre.com.br"
+    mercado_livre_auth_base_url: str = "https://auth.mercadolivre.com.br"
     mercado_livre_site_id: str = "MLB"
     mercado_livre_timeout_seconds: int = 12
     mercado_livre_app_id: str = ""
