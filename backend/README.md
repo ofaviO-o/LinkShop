@@ -69,6 +69,19 @@ alembic -c backend/alembic.ini upgrade head
 python backend/seed.py
 ```
 
+Credenciais locais padrao apos o seed:
+
+- admin: `admin@linkshop.dev` / `123456`
+- usuario demo: `user@linkshop.dev` / `123456`
+
+Se voce quiser apenas garantir o admin sem repopular o restante da base, use:
+
+```bash
+python backend/ensure_admin_user.py
+```
+
+Esse bootstrap local continua manual. O startup do FastAPI nao cria admin automaticamente fora dos fluxos containerizados com migracao habilitada.
+
 7. Inicie a API:
 
 ```bash

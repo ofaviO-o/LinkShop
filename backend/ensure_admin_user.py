@@ -2,8 +2,8 @@ from app.db.session import SessionLocal
 from app.services.auth_service import AuthService
 
 
-ADMIN_EMAIL = "admin@linkshop.com"
-ADMIN_PASSWORD = "admin123"
+ADMIN_EMAIL = "admin@linkshop.dev"
+ADMIN_PASSWORD = "123456"
 ADMIN_NAME = "LinkShop Admin"
 
 

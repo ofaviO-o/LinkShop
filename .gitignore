@@ -15,6 +15,7 @@ Desktop.ini
 # =========================
 .env
 .env.*
+.env.local
 !.env.example
 !.env.*.example
 !backend/.env.example

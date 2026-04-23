@@ -7,6 +7,8 @@ from typing import Literal
 from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+BACKEND_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+
 
 class Settings(BaseSettings):
     app_name: str = "LinkShop API"
@@ -29,7 +31,7 @@ class Settings(BaseSettings):
     mercado_livre_timeout_seconds: int = 12
 
     model_config = SettingsConfigDict(
-        env_file="backend/.env",
+        env_file=BACKEND_ENV_FILE,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
