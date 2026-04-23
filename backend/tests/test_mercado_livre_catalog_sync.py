@@ -268,25 +268,94 @@ def test_mercado_livre_provider_falls_back_to_catalog_product_when_item_lookup_f
 
 def test_mercado_livre_search_uses_catalog_products_endpoint_when_token_exists(monkeypatch) -> None:
     provider = MercadoLivreCatalogProvider()
+    requested_paths: list[str] = []
 
     def fake_get_json(path: str, *, access_token: str | None = None) -> dict:
         assert access_token == "token"
-        assert path.startswith("/products/search?")
-        return {
-            "results": [
-                {
-                    "id": "MLB18500846",
-                    "name": "iPhone 13 128 GB Azul",
-                    "domain_id": "MLB-CELLPHONES",
-                    "attributes": [{"id": "BRAND", "name": "Marca", "value_name": "Apple"}],
-                    "permalink": "https://www.mercadolivre.com.br/iphone-13-128-gb-azul/p/MLB18500846",
-                }
-            ]
-        }
+        requested_paths.append(path)
+
+        if path.startswith("/sites/MLB/domain_discovery/search?"):
+            return [{"domain_id": "MLB-CELLPHONES", "category_id": "MLB1055"}]
+
+        if path.startswith("/products/search?"):
+            return {
+                "results": [
+                    {
+                        "id": "MLB18500846",
+                        "name": "iPhone 13 128 GB Azul",
+                        "domain_id": "MLB-CELLPHONES",
+                        "attributes": [{"id": "BRAND", "name": "Marca", "value_name": "Apple"}],
+                        "permalink": "https://www.mercadolivre.com.br/iphone-13-128-gb-azul/p/MLB18500846",
+                    }
+                ]
+            }
+
+        if path.startswith("/sites/MLB/search?"):
+            return {
+                "results": [
+                    {
+                        "id": "MLB111222333",
+                        "title": "Capa para iPhone 13",
+                        "category_id": "MLB1648",
+                        "domain_id": "MLB-CELLPHONE_CASES",
+                        "thumbnail": "https://http2.mlstatic.com/capa.jpg",
+                        "permalink": "https://produto.mercadolivre.com.br/MLB111222333-capa",
+                        "currency_id": "BRL",
+                        "price": 49.9,
+                    }
+                ]
+            }
+
+        raise AssertionError(f"Unexpected path: {path}")
 
     monkeypatch.setattr(provider, "_get_json", fake_get_json)
 
     result = provider.search_products(query="iphone 13", limit=5, access_token="token")
 
+    assert any(path.startswith("/products/search?") for path in requested_paths)
+    assert any(path.startswith("/sites/MLB/search?") for path in requested_paths)
     assert result.items[0].external_id == "MLB18500846"
     assert result.items[0].title == "iPhone 13 128 GB Azul"
+
+
+def test_mercado_livre_search_penalizes_accessories_when_query_targets_main_product(monkeypatch) -> None:
+    provider = MercadoLivreCatalogProvider()
+
+    def fake_get_json(path: str, *, access_token: str | None = None) -> dict:
+        _ = access_token
+
+        if path.startswith("/sites/MLB/domain_discovery/search?"):
+            return [{"domain_id": "MLB-AIR_CONDITIONERS", "category_id": "MLB1234"}]
+
+        if path.startswith("/sites/MLB/search?"):
+            return {
+                "results": [
+                    {
+                        "id": "MLB1",
+                        "title": "Ar Condicionado Split Inverter 12000 BTUs",
+                        "category_id": "MLB1234",
+                        "domain_id": "MLB-AIR_CONDITIONERS",
+                        "permalink": "https://produto.mercadolivre.com.br/MLB1-ar-condicionado",
+                        "currency_id": "BRL",
+                        "price": 1999.0,
+                    },
+                    {
+                        "id": "MLB2",
+                        "title": "Ar Condicionado Automotivo para Carro Compacto",
+                        "category_id": "MLB9999",
+                        "domain_id": "MLB-CAR_AIR_CONDITIONING",
+                        "permalink": "https://produto.mercadolivre.com.br/MLB2-ar-condicionado-automotivo",
+                        "currency_id": "BRL",
+                        "price": 599.0,
+                    },
+                ]
+            }
+
+        raise AssertionError(f"Unexpected path: {path}")
+
+    monkeypatch.setattr(provider, "_get_json", fake_get_json)
+
+    result = provider.search_products(query="ar condicionado", limit=5, access_token=None)
+
+    assert result.items[0].external_id == "MLB1"
+    assert "Automotivo" not in result.items[0].title

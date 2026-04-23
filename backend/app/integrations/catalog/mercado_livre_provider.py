@@ -22,27 +22,74 @@ class MercadoLivreReference:
     resolved_url: str | None = None
 
 
+@dataclass(frozen=True)
+class MercadoLivreSearchContext:
+    domain_id: str | None = None
+    category_id: str | None = None
+
+
 class MercadoLivreCatalogProvider(BaseCatalogProvider):
     provider_name = "mercado-livre-catalog"
     marketplace = "mercado-livre"
+    _ACCESSORY_TERMS = {
+        "acessorio",
+        "acessorios",
+        "adaptador",
+        "adaptadores",
+        "cabo",
+        "cabos",
+        "capa",
+        "capa protetora",
+        "capinha",
+        "capinhas",
+        "carregador",
+        "case",
+        "cases",
+        "controle remoto",
+        "fone",
+        "fones",
+        "pelicula",
+        "peliculas",
+        "pelicula de vidro",
+        "suporte",
+        "suportes",
+    }
+    _AUTOMOTIVE_TERMS = {
+        "automotivo",
+        "automotiva",
+        "carro",
+        "veicular",
+        "veiculo",
+        "veiculos",
+    }
 
     def search_products(self, *, query: str, limit: int = 10, access_token: str | None = None) -> CatalogSearchResult:
         normalized_query = query.strip()
         if not normalized_query:
             raise BusinessRuleError("Query is required to search Mercado Livre catalog", code="CATALOG_QUERY_REQUIRED")
 
+        requested_limit = max(1, min(limit, 50))
+        search_context = self._discover_search_context(normalized_query, access_token=access_token)
+        marketplace_payload = self._get_json(
+            f"/sites/{settings.mercado_livre_site_id}/search?q={quote(normalized_query)}&limit={max(requested_limit * 3, 30)}",
+            access_token=access_token,
+        )
+        marketplace_items = self._parse_marketplace_search_results(marketplace_payload)
+
+        catalog_items: list[CatalogSearchItem] = []
         if access_token:
-            payload = self._get_json(
-                f"/products/search?status=active&site_id={settings.mercado_livre_site_id}&q={quote(normalized_query)}&limit={max(1, min(limit, 50))}",
+            catalog_payload = self._get_json(
+                f"/products/search?status=active&site_id={settings.mercado_livre_site_id}&q={quote(normalized_query)}&limit={max(requested_limit * 3, 30)}",
                 access_token=access_token,
             )
-            items = self._parse_catalog_product_search_results(payload)
-        else:
-            payload = self._get_json(
-                f"/sites/{settings.mercado_livre_site_id}/search?q={quote(normalized_query)}&limit={max(1, min(limit, 50))}",
-                access_token=access_token,
-            )
-            items = self._parse_marketplace_search_results(payload)
+            catalog_items = self._parse_catalog_product_search_results(catalog_payload)
+
+        items = self._rank_search_results(
+            query=normalized_query,
+            items=[*catalog_items, *marketplace_items],
+            search_context=search_context,
+            limit=requested_limit,
+        )
 
         return CatalogSearchResult(provider=self.provider_name, query=normalized_query, items=items)
 
@@ -371,6 +418,30 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
 
         return None
 
+    def _discover_search_context(self, query: str, *, access_token: str | None) -> MercadoLivreSearchContext:
+        try:
+            payload = self._get_json(
+                f"/sites/{settings.mercado_livre_site_id}/domain_discovery/search?limit=1&q={quote(query)}",
+                access_token=access_token,
+            )
+        except Exception:
+            return MercadoLivreSearchContext()
+
+        if isinstance(payload, list):
+            first_match = payload[0] if payload else {}
+        elif isinstance(payload, dict):
+            first_match = (payload.get("results") or [None])[0] or {}
+        else:
+            first_match = {}
+
+        if not isinstance(first_match, dict):
+            return MercadoLivreSearchContext()
+
+        return MercadoLivreSearchContext(
+            domain_id=self._normalize_optional_text(first_match.get("domain_id")),
+            category_id=self._normalize_optional_text(first_match.get("category_id")),
+        )
+
     def _parse_marketplace_search_results(self, payload: dict) -> list[CatalogSearchItem]:
         items: list[CatalogSearchItem] = []
         for raw_item in payload.get("results", []):
@@ -384,7 +455,8 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
                     marketplace=self.marketplace,
                     external_id=item_id,
                     title=title,
-                    category_id=self._normalize_optional_text(raw_item.get("category_id")),
+                    category_id=self._normalize_optional_text(raw_item.get("domain_id"))
+                    or self._normalize_optional_text(raw_item.get("category_id")),
                     thumbnail_url=self._normalize_optional_text(raw_item.get("thumbnail")),
                     canonical_url=self._normalize_optional_text(raw_item.get("permalink")),
                     brand=self._extract_brand_from_attributes(raw_item.get("attributes")),
@@ -423,6 +495,134 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             )
 
         return items
+
+    def _rank_search_results(
+        self,
+        *,
+        query: str,
+        items: list[CatalogSearchItem],
+        search_context: MercadoLivreSearchContext,
+        limit: int,
+    ) -> list[CatalogSearchItem]:
+        query_text = self._normalize_search_text(query)
+        query_tokens = self._tokenize_search_text(query_text)
+        query_term_set = set(query_tokens)
+        scored_items: list[tuple[int, CatalogSearchItem]] = []
+        seen_keys: set[str] = set()
+
+        for item in items:
+            dedupe_key = self._build_search_dedupe_key(item)
+            if dedupe_key in seen_keys:
+                continue
+            seen_keys.add(dedupe_key)
+            score = self._score_search_item(
+                item=item,
+                query_text=query_text,
+                query_tokens=query_tokens,
+                query_term_set=query_term_set,
+                search_context=search_context,
+            )
+            if score <= -100:
+                continue
+            scored_items.append((score, item))
+
+        scored_items.sort(
+            key=lambda entry: (
+                entry[0],
+                1 if entry[1].price is not None else 0,
+                len(entry[1].title),
+            ),
+            reverse=True,
+        )
+        return [item for _, item in scored_items[:limit]]
+
+    def _score_search_item(
+        self,
+        *,
+        item: CatalogSearchItem,
+        query_text: str,
+        query_tokens: list[str],
+        query_term_set: set[str],
+        search_context: MercadoLivreSearchContext,
+    ) -> int:
+        title_text = self._normalize_search_text(item.title)
+        title_tokens = self._tokenize_search_text(title_text)
+        title_token_set = set(title_tokens)
+        accessory_terms = self._contains_term_group(title_text, self._ACCESSORY_TERMS)
+        automotive_terms = self._contains_term_group(title_text, self._AUTOMOTIVE_TERMS)
+
+        overlap_count = sum(1 for token in query_tokens if token in title_token_set)
+        score = overlap_count * 18
+
+        if query_text and query_text in title_text:
+            score += 70
+
+        if title_text.startswith(query_text):
+            score += 35
+
+        if overlap_count == len(query_tokens) and query_tokens:
+            score += 40
+
+        if item.brand and self._normalize_search_text(item.brand) in title_text:
+            score += 8
+
+        if search_context.domain_id and item.category_id and item.category_id == search_context.domain_id:
+            score += 60
+        elif search_context.category_id and item.category_id and item.category_id == search_context.category_id:
+            score += 45
+        elif search_context.domain_id and item.category_id and item.category_id != search_context.domain_id:
+            score -= 20
+
+        if accessory_terms and not any(term in query_text for term in accessory_terms):
+            score -= 110
+
+        if automotive_terms and not any(term in query_text for term in automotive_terms):
+            score -= 95
+
+        if self._looks_like_storage_or_device_variant(title_tokens) and not accessory_terms:
+            score += 22
+
+        if item.price is not None:
+            score += 5
+
+        return score
+
+    def _looks_like_storage_or_device_variant(self, tokens: list[str]) -> bool:
+        return any(token in {"64", "128", "256", "512"} for token in tokens) or any(
+            token.endswith("gb") or token.endswith("tb") for token in tokens
+        )
+
+    def _build_search_dedupe_key(self, item: CatalogSearchItem) -> str:
+        canonical = self._normalize_optional_text(item.canonical_url)
+        if canonical:
+            return canonical.lower()
+        return f"{item.external_id.lower()}::{self._normalize_search_text(item.title)}"
+
+    def _contains_term_group(self, text: str, terms: set[str]) -> set[str]:
+        matches: set[str] = set()
+        for term in terms:
+            normalized_term = self._normalize_search_text(term)
+            if normalized_term and normalized_term in text:
+                matches.add(normalized_term)
+        return matches
+
+    def _normalize_search_text(self, value: str) -> str:
+        normalized = value.lower()
+        normalized = normalized.replace("-", " ")
+        normalized = normalized.replace("_", " ")
+        normalized = normalized.replace("á", "a").replace("à", "a").replace("â", "a").replace("ã", "a")
+        normalized = normalized.replace("é", "e").replace("ê", "e")
+        normalized = normalized.replace("í", "i")
+        normalized = normalized.replace("ó", "o").replace("ô", "o").replace("õ", "o")
+        normalized = normalized.replace("ú", "u")
+        normalized = normalized.replace("ç", "c")
+        normalized = re.sub(r"[^a-z0-9\s]", " ", normalized)
+        return re.sub(r"\s+", " ", normalized).strip()
+
+    def _tokenize_search_text(self, value: str) -> list[str]:
+        if not value:
+            return []
+        return [token for token in value.split(" ") if len(token) > 1]
 
     def _build_fallback_product_url(self, external_id: str, *, reference_type: str) -> str:
         if reference_type == "product":
