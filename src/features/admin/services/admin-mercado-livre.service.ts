@@ -98,6 +98,8 @@ export type AdminMercadoLivreOAuthStatus = {
   lastErrorMessage?: string;
 };
 
+export type AdminMercadoLivreCatalogPreviewSearchResult = AdminMercadoLivreSearchResult;
+
 function mapPreview(payload: BackendMercadoLivrePreview): AdminImportedProduct {
   return {
     provider: payload.provider,

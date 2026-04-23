@@ -1,4 +1,5 @@
 import type { CatalogSearchResult } from "@/features/catalog/types/catalog.types";
+import { AdminMercadoLivrePreviewGrid } from "@/features/catalog/components/admin-mercado-livre-preview-grid";
 import { CatalogEmptyState } from "@/features/catalog/components/catalog-empty-state";
 import { CatalogFilters } from "@/features/catalog/components/catalog-filters";
 import { CatalogGrid } from "@/features/catalog/components/catalog-grid";
@@ -153,6 +154,8 @@ export function CatalogSearchView({ result, context, buildPageHref }: CatalogSea
         collapsedToggleLabel="Filtrar"
         main={
           <div className="section-shell">
+            {result.appliedFilters.query ? <AdminMercadoLivrePreviewGrid query={result.appliedFilters.query} /> : null}
+
             {activeFilters.length ? (
               <div className="mb-5 flex flex-wrap gap-2">
                 {activeFilters.map((filter) => (
