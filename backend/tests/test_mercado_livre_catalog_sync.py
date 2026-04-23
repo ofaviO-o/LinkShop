@@ -186,6 +186,8 @@ def test_mercado_livre_provider_http_error_becomes_structured_external_error(
         assert exc.code == "MERCADO_LIVRE_HTTP_ERROR"
         assert exc.status_code == 502
         assert "HTTP 403" in exc.message
+        assert "/sites/MLB/search" in exc.message
+        assert "forbidden" in exc.message
     else:
         raise AssertionError("Expected ExternalServiceError")
 

@@ -327,11 +327,10 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             with urlopen(request, timeout=settings.mercado_livre_timeout_seconds) as response:
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
-            message = f"Mercado Livre API rejected catalog request with HTTP {exc.code}."
-            if exc.code == 403:
-                message = "Mercado Livre API rejected the catalog request with HTTP 403. Check account permissions, request headers, rate limits, or network policy."
+            error_detail = self._extract_http_error_detail(exc)
             if exc.code == 404:
                 raise NotFoundError("Mercado Livre item or catalog product was not found", code="MERCADO_LIVRE_ITEM_NOT_FOUND") from exc
+            message = self._build_http_error_message(path=path, status_code=exc.code, detail=error_detail)
             raise ExternalServiceError(
                 message,
                 code="MERCADO_LIVRE_HTTP_ERROR",
@@ -356,6 +355,66 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
                 code="MERCADO_LIVRE_INVALID_RESPONSE",
                 status_code=502,
             ) from exc
+
+    def _extract_http_error_detail(self, exc: HTTPError) -> str | None:
+        try:
+            raw_body = exc.read()
+        except Exception:
+            return None
+
+        if not raw_body:
+            return None
+
+        try:
+            body_text = raw_body.decode("utf-8")
+        except UnicodeDecodeError:
+            return None
+
+        normalized_body = body_text.strip()
+        if not normalized_body:
+            return None
+
+        try:
+            payload = json.loads(normalized_body)
+        except json.JSONDecodeError:
+            return self._normalize_http_error_text(normalized_body)
+
+        if isinstance(payload, dict):
+            parts: list[str] = []
+            message = self._normalize_optional_text(payload.get("message"))
+            error = self._normalize_optional_text(payload.get("error"))
+            if message:
+                parts.append(message)
+            if error and error.lower() not in {part.lower() for part in parts}:
+                parts.append(f"error={error}")
+
+            cause = payload.get("cause")
+            if isinstance(cause, list):
+                cause_parts = [
+                    self._normalize_http_error_text(str(entry))
+                    for entry in cause
+                    if self._normalize_optional_text(entry)
+                ]
+                if cause_parts:
+                    parts.append(f"cause={' | '.join(cause_parts[:3])}")
+
+            if parts:
+                return "; ".join(parts)
+
+        return self._normalize_http_error_text(normalized_body)
+
+    def _build_http_error_message(self, *, path: str, status_code: int, detail: str | None) -> str:
+        endpoint = path.split("?", maxsplit=1)[0]
+        base_message = f"Mercado Livre API rejected catalog request with HTTP {status_code} on {endpoint}."
+        if not detail:
+            return base_message
+        return f"{base_message} Mercado Livre response: {detail}"
+
+    def _normalize_http_error_text(self, value: str) -> str:
+        normalized = re.sub(r"\s+", " ", value).strip()
+        if len(normalized) > 240:
+            return f"{normalized[:237]}..."
+        return normalized
 
     def _get_optional_json(self, path: str, *, access_token: str | None = None) -> dict | None:
         try:
