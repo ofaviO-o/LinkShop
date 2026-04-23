@@ -30,12 +30,14 @@ class AdminProductService:
         product = Product(
             slug=slug,
             name=payload.name.strip(),
+            title=payload.name.strip(),
             brand=payload.brand.strip(),
             category=payload.category.strip(),
             description=payload.description.strip(),
             thumbnail_url=payload.thumbnail_url.strip(),
             popularity_score=payload.popularity_score,
             is_active=payload.is_active,
+            last_synced_at=now,
         )
         db.add(product)
         db.flush()
@@ -43,11 +45,13 @@ class AdminProductService:
         offer = Offer(
             product_id=product.id,
             store_id=store.id,
+            marketplace=store.code,
             external_offer_id=AdminProductService._normalize_optional_text(payload.external_offer_id),
             seller_name=payload.seller_name.strip(),
             title=payload.name.strip(),
             affiliate_url=payload.affiliate_url.strip(),
             landing_url=AdminProductService._normalize_optional_url(payload.landing_url),
+            product_url=AdminProductService._normalize_optional_url(payload.landing_url) or payload.affiliate_url.strip(),
             price=payload.price,
             original_price=payload.original_price,
             currency="BRL",
@@ -56,6 +60,7 @@ class AdminProductService:
             availability=payload.availability.strip(),
             is_featured=payload.is_featured,
             is_active=payload.is_active,
+            fetched_at=now,
             last_synced_at=now,
         )
         db.add(offer)
@@ -82,12 +87,14 @@ class AdminProductService:
 
         product.slug = slug
         product.name = payload.name.strip()
+        product.title = payload.name.strip()
         product.brand = payload.brand.strip()
         product.category = payload.category.strip()
         product.description = payload.description.strip()
         product.thumbnail_url = payload.thumbnail_url.strip()
         product.popularity_score = payload.popularity_score
         product.is_active = payload.is_active
+        product.last_synced_at = now
 
         offer = AdminProductService._resolve_offer_for_update(product, payload.offer_id)
 
@@ -95,11 +102,13 @@ class AdminProductService:
             offer = Offer(
                 product_id=product.id,
                 store_id=store.id,
+                marketplace=store.code,
                 external_offer_id=AdminProductService._normalize_optional_text(payload.external_offer_id),
                 seller_name=payload.seller_name.strip(),
                 title=payload.name.strip(),
                 affiliate_url=payload.affiliate_url.strip(),
                 landing_url=AdminProductService._normalize_optional_url(payload.landing_url),
+                product_url=AdminProductService._normalize_optional_url(payload.landing_url) or payload.affiliate_url.strip(),
                 price=payload.price,
                 original_price=payload.original_price,
                 currency="BRL",
@@ -108,16 +117,19 @@ class AdminProductService:
                 availability=payload.availability.strip(),
                 is_featured=payload.is_featured,
                 is_active=payload.is_active,
+                fetched_at=now,
                 last_synced_at=now,
             )
             db.add(offer)
         else:
             offer.store_id = store.id
+            offer.marketplace = store.code
             offer.external_offer_id = AdminProductService._normalize_optional_text(payload.external_offer_id)
             offer.seller_name = payload.seller_name.strip()
             offer.title = payload.name.strip()
             offer.affiliate_url = payload.affiliate_url.strip()
             offer.landing_url = AdminProductService._normalize_optional_url(payload.landing_url)
+            offer.product_url = AdminProductService._normalize_optional_url(payload.landing_url) or payload.affiliate_url.strip()
             offer.price = payload.price
             offer.original_price = payload.original_price
             offer.shipping_cost = payload.shipping_cost
@@ -125,6 +137,7 @@ class AdminProductService:
             offer.availability = payload.availability.strip()
             offer.is_featured = payload.is_featured
             offer.is_active = payload.is_active
+            offer.fetched_at = now
             offer.last_synced_at = now
 
         db.commit()

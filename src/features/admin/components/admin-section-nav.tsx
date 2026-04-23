@@ -7,7 +7,8 @@ const ADMIN_LINKS = [
   { href: "/admin", label: "Painel" },
   { href: "/admin/produtos", label: "Produtos" },
   { href: "/admin/produtos/importar", label: "Importar" },
-  { href: "/admin/produtos/revisar", label: "Revisar" }
+  { href: "/admin/produtos/revisar", label: "Revisar" },
+  { href: "/admin/integracoes/mercado-livre", label: "Mercado Livre" }
 ];
 
 function isActive(pathname: string, href: string) {
@@ -16,6 +17,10 @@ function isActive(pathname: string, href: string) {
   }
 
   if (href === "/admin/produtos" && pathname.startsWith("/admin/produtos/editar")) {
+    return true;
+  }
+
+  if (href === "/admin/integracoes/mercado-livre" && pathname.startsWith("/admin/integracoes/mercado-livre")) {
     return true;
   }
 

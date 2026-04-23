@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     alert_price_drop_threshold_percentage: float = 1.0
     log_level: str = "INFO"
     integration_json_feed_path: str = "backend/app/integrations/fixtures/sample_partner_feed.json"
+    mercado_livre_api_base_url: str = "https://api.mercadolibre.com"
+    mercado_livre_site_id: str = "MLB"
+    mercado_livre_timeout_seconds: int = 12
 
     model_config = SettingsConfigDict(
         env_file="backend/.env",
@@ -69,6 +72,15 @@ class Settings(BaseSettings):
 
         if not self.integration_json_feed_path.strip():
             raise ValueError("INTEGRATION_JSON_FEED_PATH must not be blank")
+
+        if not self.mercado_livre_api_base_url.strip():
+            raise ValueError("MERCADO_LIVRE_API_BASE_URL must not be blank")
+
+        if not self.mercado_livre_site_id.strip():
+            raise ValueError("MERCADO_LIVRE_SITE_ID must not be blank")
+
+        if self.mercado_livre_timeout_seconds <= 0:
+            raise ValueError("MERCADO_LIVRE_TIMEOUT_SECONDS must be greater than zero")
 
         return self
 

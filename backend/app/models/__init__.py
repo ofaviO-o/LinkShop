@@ -1,5 +1,6 @@
 from app.models.alert_config import AlertConfig
 from app.models.alert_event import AlertEvent
+from app.models.affiliate_link_cache import AffiliateLinkCache
 from app.models.auth_session import AuthSession
 from app.models.click_event import ClickEvent
 from app.models.compare_list_item import CompareListItem
@@ -24,6 +25,7 @@ __all__ = [
     "PriceWatch",
     "AlertConfig",
     "AlertEvent",
+    "AffiliateLinkCache",
     "AuthSession",
     "ClickEvent",
 ]

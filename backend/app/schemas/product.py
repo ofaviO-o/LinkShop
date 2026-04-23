@@ -13,12 +13,20 @@ class ProductListItem(BaseModel):
     id: str
     slug: str
     name: str
+    title: str | None = None
+    marketplace: str | None = None
+    external_id: str | None = None
     brand: str
     category: str
+    category_id: str | None = None
     description: str
     thumbnail_url: str
+    canonical_url: str | None = None
+    condition: str | None = None
+    currency_id: str | None = None
     popularity_score: int
     is_active: bool
+    last_synced_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

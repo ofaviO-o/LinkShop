@@ -42,6 +42,40 @@ export type AdminImportedProduct = {
   originalPrice?: number;
 };
 
+export type AdminMercadoLivreSearchItem = {
+  marketplace: "mercado-livre";
+  externalId: string;
+  title: string;
+  categoryId?: string;
+  thumbnailUrl?: string;
+  canonicalUrl?: string;
+  brand?: string;
+  condition?: string;
+  currencyId: string;
+  price?: number;
+  originalPrice?: number;
+};
+
+export type AdminMercadoLivreSearchResult = {
+  provider: string;
+  query: string;
+  items: AdminMercadoLivreSearchItem[];
+};
+
+export type AdminMercadoLivreSyncResult = {
+  provider: string;
+  marketplace: string;
+  sourceReference: string;
+  productId: string;
+  productExternalId: string;
+  productStatus: string;
+  offerIds: string[];
+  offersCreated: number;
+  offersUpdated: number;
+  offersCount: number;
+  syncedAt: string;
+};
+
 export type AdminImportReviewDraft = {
   id: string;
   createdAt: string;

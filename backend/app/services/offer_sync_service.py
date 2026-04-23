@@ -258,11 +258,13 @@ class OfferSyncService:
             offer = Offer(
                 product_id=product.id,
                 store_id=store.id,
+                marketplace=store.code,
                 external_offer_id=payload.external_offer_id,
                 seller_name=payload.seller_name,
                 title=payload.title,
                 affiliate_url=payload.affiliate_url,
                 landing_url=payload.landing_url,
+                product_url=payload.landing_url or payload.affiliate_url,
                 price=payload.price,
                 original_price=payload.original_price,
                 currency=payload.currency,
@@ -271,6 +273,7 @@ class OfferSyncService:
                 availability=payload.availability,
                 is_featured=payload.is_featured,
                 is_active=payload.is_active,
+                fetched_at=synced_at,
                 last_synced_at=synced_at,
             )
             db.add(offer)
@@ -301,10 +304,12 @@ class OfferSyncService:
 
     @staticmethod
     def _apply_payload(offer: Offer, payload: NormalizedOfferPayload, synced_at: datetime) -> None:
+        offer.marketplace = offer.marketplace or offer.store.code
         offer.seller_name = payload.seller_name
         offer.title = payload.title
         offer.affiliate_url = payload.affiliate_url
         offer.landing_url = payload.landing_url
+        offer.product_url = payload.landing_url or payload.affiliate_url
         offer.price = payload.price
         offer.original_price = payload.original_price
         offer.currency = payload.currency
@@ -313,6 +318,7 @@ class OfferSyncService:
         offer.availability = payload.availability
         offer.is_featured = payload.is_featured
         offer.is_active = payload.is_active
+        offer.fetched_at = synced_at
         offer.last_synced_at = synced_at
 
     @staticmethod

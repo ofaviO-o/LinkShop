@@ -2,7 +2,19 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -21,19 +33,24 @@ class Offer(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     product_id: Mapped[str] = mapped_column(String(36), ForeignKey("products.id"), nullable=False, index=True)
     store_id: Mapped[str] = mapped_column(String(36), ForeignKey("stores.id"), nullable=False, index=True)
+    marketplace: Mapped[str | None] = mapped_column(String(60), nullable=True, index=True)
     external_offer_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    seller_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     seller_name: Mapped[str] = mapped_column(String(160), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     affiliate_url: Mapped[str] = mapped_column(Text, nullable=False)
     landing_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    product_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, index=True)
     original_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default="BRL")
     shipping_cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     installment_text: Mapped[str | None] = mapped_column(String(120), nullable=True)
     availability: Mapped[str] = mapped_column(String(30), nullable=False, default="in_stock")
+    available_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
