@@ -2,6 +2,7 @@ import { apiClient } from "@/shared/api/api-client";
 import type { ApiResponse } from "@/shared/types/api.types";
 import type {
   AdminImportedProduct,
+  AdminMercadoLivreSearchDiagnostics,
   AdminMercadoLivreSearchItem,
   AdminMercadoLivreSearchResult,
   AdminMercadoLivreSyncResult
@@ -29,6 +30,65 @@ type BackendMercadoLivreSearchResult = {
   total: number;
   total_pages: number;
   items: BackendMercadoLivreSearchItem[];
+};
+
+type BackendMercadoLivreSearchDiagnostics = {
+  query: string;
+  search_path: string;
+  search_error?: {
+    type: string;
+    message: string;
+    code?: string;
+    status_code?: number;
+    path?: string;
+  } | null;
+  raw_search_payload?: unknown;
+  matched_results_in_search_page: Array<{
+    id?: string;
+    title?: string;
+    permalink?: string;
+    catalog_product_id?: string;
+    catalog_listing?: boolean;
+    available_quantity?: number;
+    sold_quantity?: number;
+    buying_mode?: string;
+    condition?: string;
+    status?: string;
+    seller?: unknown;
+    attributes_relevantes?: Array<{
+      id?: string;
+      name?: string;
+      value_id?: string;
+      value_name?: string;
+    }>;
+  }>;
+  target_product_details: Array<{
+    target_id: string;
+    id?: string;
+    title?: string;
+    permalink?: string;
+    catalog_product_id?: string;
+    catalog_listing?: boolean;
+    available_quantity?: number;
+    sold_quantity?: number;
+    buying_mode?: string;
+    condition?: string;
+    status?: string;
+    seller?: unknown;
+    buy_box_winner?: unknown;
+    pickers?: unknown;
+    children_ids?: string[];
+    attributes_relevantes?: Array<{
+      id?: string;
+      name?: string;
+      value_id?: string;
+      value_name?: string;
+    }>;
+    error?: {
+      type: string;
+      message: string;
+    };
+  }>;
 };
 
 type BackendMercadoLivrePreview = {
@@ -141,6 +201,67 @@ function mapSearchItem(payload: BackendMercadoLivreSearchItem): AdminMercadoLivr
   };
 }
 
+function mapDiagnosticAttributes(
+  payload?: Array<{ id?: string; name?: string; value_id?: string; value_name?: string }>
+) {
+  return payload?.map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    valueId: entry.value_id,
+    valueName: entry.value_name
+  }));
+}
+
+function mapSearchDiagnostics(payload: BackendMercadoLivreSearchDiagnostics): AdminMercadoLivreSearchDiagnostics {
+  return {
+    query: payload.query,
+    searchPath: payload.search_path,
+    searchError: payload.search_error
+      ? {
+          type: payload.search_error.type,
+          message: payload.search_error.message,
+          code: payload.search_error.code,
+          statusCode: payload.search_error.status_code,
+          path: payload.search_error.path
+        }
+      : undefined,
+    rawSearchPayload: payload.raw_search_payload,
+    matchedResultsInSearchPage: payload.matched_results_in_search_page.map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      permalink: entry.permalink,
+      catalogProductId: entry.catalog_product_id,
+      catalogListing: entry.catalog_listing,
+      availableQuantity: entry.available_quantity,
+      soldQuantity: entry.sold_quantity,
+      buyingMode: entry.buying_mode,
+      condition: entry.condition,
+      status: entry.status,
+      seller: entry.seller,
+      attributesRelevantes: mapDiagnosticAttributes(entry.attributes_relevantes)
+    })),
+    targetProductDetails: payload.target_product_details.map((entry) => ({
+      targetId: entry.target_id,
+      id: entry.id,
+      title: entry.title,
+      permalink: entry.permalink,
+      catalogProductId: entry.catalog_product_id,
+      catalogListing: entry.catalog_listing,
+      availableQuantity: entry.available_quantity,
+      soldQuantity: entry.sold_quantity,
+      buyingMode: entry.buying_mode,
+      condition: entry.condition,
+      status: entry.status,
+      seller: entry.seller,
+      buyBoxWinner: entry.buy_box_winner,
+      pickers: entry.pickers,
+      childrenIds: entry.children_ids,
+      attributesRelevantes: mapDiagnosticAttributes(entry.attributes_relevantes),
+      error: entry.error
+    }))
+  };
+}
+
 function mapSyncResult(payload: BackendMercadoLivreSyncResult): AdminMercadoLivreSyncResult {
   return {
     provider: payload.provider,
@@ -233,6 +354,22 @@ export const adminMercadoLivreService = {
         totalPages: response.data.total_pages,
         items: response.data.items.map(mapSearchItem)
       }
+    };
+  },
+
+  async runSearchDiagnostics(query = "iphone 16"): Promise<ApiResponse<AdminMercadoLivreSearchDiagnostics>> {
+    const params = new URLSearchParams({ q: query.trim() || "iphone 16" });
+    const response = await apiClient.get<BackendMercadoLivreSearchDiagnostics>(
+      `/admin/catalog/mercado-livre/diagnostics/search?${params.toString()}`
+    );
+
+    if (!response.ok) {
+      return response;
+    }
+
+    return {
+      ...response,
+      data: mapSearchDiagnostics(response.data)
     };
   },
 

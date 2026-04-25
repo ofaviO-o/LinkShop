@@ -12,6 +12,7 @@ import {
 import { useAdminImportReviewStore } from "@/features/admin/store/admin-import-review.store";
 import type {
   AdminImportedProduct,
+  AdminMercadoLivreSearchDiagnostics,
   AdminMercadoLivreSearchItem,
   AdminMercadoLivreSearchResult,
   AdminMercadoLivreSyncResult
@@ -59,6 +60,7 @@ export function AdminMercadoLivreIntegrationView() {
   const [productUrl, setProductUrl] = useState("");
   const [externalId, setExternalId] = useState("");
   const [searchResult, setSearchResult] = useState<AdminMercadoLivreSearchResult | null>(null);
+  const [diagnosticsResult, setDiagnosticsResult] = useState<AdminMercadoLivreSearchDiagnostics | null>(null);
   const [lastPreview, setLastPreview] = useState<AdminImportedProduct | null>(null);
   const [lastSync, setLastSync] = useState<AdminMercadoLivreSyncResult | null>(null);
   const [oauthStatus, setOauthStatus] = useState<AdminMercadoLivreOAuthStatus | null>(null);
@@ -204,6 +206,52 @@ export function AdminMercadoLivreIntegrationView() {
       message: `${response.data.total} resultado(s) encontrados para "${response.data.query}". Pagina ${response.data.page} de ${response.data.totalPages}.`
     });
     setBusyKey(null);
+  }
+
+  async function runDiagnostics() {
+    const query = searchTerm.trim() || "iphone 16";
+    setBusyKey("diagnostics");
+    setFeedback(null);
+
+    const response = await adminMercadoLivreService.runSearchDiagnostics(query);
+    if (!response.ok) {
+      setFeedback({
+        type: "error",
+        title: "Falha ao rodar diagnostico",
+        message: response.error.message
+      });
+      setBusyKey(null);
+      return;
+    }
+
+    setDiagnosticsResult(response.data);
+    setFeedback({
+      type: "success",
+      title: "Diagnostico concluido",
+      message: `Diagnostico do termo "${response.data.query}" pronto para copiar e analisar.`
+    });
+    setBusyKey(null);
+  }
+
+  async function copyDiagnostics() {
+    if (!diagnosticsResult) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(diagnosticsResult, null, 2));
+      setFeedback({
+        type: "success",
+        title: "Diagnostico copiado",
+        message: "O JSON do diagnostico foi copiado para a area de transferencia."
+      });
+    } catch {
+      setFeedback({
+        type: "error",
+        title: "Falha ao copiar",
+        message: "Nao foi possivel copiar o diagnostico automaticamente."
+      });
+    }
   }
 
   async function sendToReviewFromExternalId(item: AdminMercadoLivreSearchItem) {
@@ -533,6 +581,14 @@ export function AdminMercadoLivreIntegrationView() {
               >
                 {busyKey === "search" ? "Buscando..." : "Buscar catalogo"}
               </button>
+              <button
+                type="button"
+                onClick={() => void runDiagnostics()}
+                disabled={busyKey === "diagnostics"}
+                className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:bg-black/5 disabled:opacity-60"
+              >
+                {busyKey === "diagnostics" ? "Diagnosticando..." : "Rodar diagnostico"}
+              </button>
             </div>
 
             {searchResult ? (
@@ -607,6 +663,54 @@ export function AdminMercadoLivreIntegrationView() {
               </div>
             ) : null}
           </div>
+
+          {diagnosticsResult ? (
+            <div className="rounded-[1.5rem] bg-white p-5 shadow-glow">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h3 className="font-display text-2xl">Diagnostico de busca</h3>
+                  <p className="mt-2 text-sm text-neutral-600">
+                    Resultado bruto para comparar o que o Mercado Livre devolve na busca e no detalhe dos IDs-alvo.
+                  </p>
+                  <div className="mt-3 space-y-1 text-sm text-neutral-600">
+                    <p>
+                      Query: <span className="font-semibold text-ink">{diagnosticsResult.query}</span>
+                    </p>
+                    <p className="break-all">
+                      Search path: <span className="font-semibold text-ink">{diagnosticsResult.searchPath}</span>
+                    </p>
+                    <p>
+                      Casos encontrados na busca:{" "}
+                      <span className="font-semibold text-ink">{diagnosticsResult.matchedResultsInSearchPage.length}</span>
+                    </p>
+                    <p>
+                      Detalhes consultados:{" "}
+                      <span className="font-semibold text-ink">{diagnosticsResult.targetProductDetails.length}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void copyDiagnostics()}
+                  className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-4 py-3 text-sm font-semibold text-ink transition hover:bg-black/5"
+                >
+                  Copiar JSON
+                </button>
+              </div>
+
+              {diagnosticsResult.searchError ? (
+                <div className="mt-4 rounded-[1.25rem] border border-coral/20 bg-coral/10 px-4 py-4 text-sm text-coral">
+                  <p className="font-semibold">Busca de catalogo falhou</p>
+                  <p className="mt-1">{diagnosticsResult.searchError.message}</p>
+                </div>
+              ) : null}
+
+              <pre className="mt-4 max-h-[32rem] overflow-auto rounded-[1.25rem] bg-black px-4 py-4 text-xs text-white">
+                {JSON.stringify(diagnosticsResult, null, 2)}
+              </pre>
+            </div>
+          ) : null}
         </div>
 
         <aside className="space-y-6">

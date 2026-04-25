@@ -28,6 +28,16 @@ def search_mercado_livre_catalog(
     return MercadoLivreCatalogSearchRead.model_validate(result.model_dump())
 
 
+@router.get("/catalog/mercado-livre/diagnostics/search")
+def diagnose_mercado_livre_catalog_search(
+    q: str = Query(default="iphone 16", min_length=1),
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    _ = current_user
+    return MercadoLivreCatalogSyncService.run_search_diagnostics(db, query=q)
+
+
 @router.get("/catalog/mercado-livre/preview/by-url", response_model=MercadoLivreCatalogPreviewRead)
 def preview_mercado_livre_catalog_by_url(
     url: str = Query(min_length=1),

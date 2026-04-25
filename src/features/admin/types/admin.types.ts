@@ -66,6 +66,54 @@ export type AdminMercadoLivreSearchResult = {
   items: AdminMercadoLivreSearchItem[];
 };
 
+export type AdminMercadoLivreDiagnosticError = {
+  type: string;
+  message: string;
+  code?: string;
+  statusCode?: number;
+  path?: string;
+};
+
+export type AdminMercadoLivreDiagnosticItem = {
+  id?: string;
+  title?: string;
+  permalink?: string;
+  catalogProductId?: string;
+  catalogListing?: boolean;
+  availableQuantity?: number;
+  soldQuantity?: number;
+  buyingMode?: string;
+  condition?: string;
+  status?: string;
+  seller?: unknown;
+  attributesRelevantes?: Array<{
+    id?: string;
+    name?: string;
+    valueId?: string;
+    valueName?: string;
+  }>;
+};
+
+export type AdminMercadoLivreDiagnosticProductDetail = AdminMercadoLivreDiagnosticItem & {
+  targetId: string;
+  buyBoxWinner?: unknown;
+  pickers?: unknown;
+  childrenIds?: string[];
+  error?: {
+    type: string;
+    message: string;
+  };
+};
+
+export type AdminMercadoLivreSearchDiagnostics = {
+  query: string;
+  searchPath: string;
+  searchError?: AdminMercadoLivreDiagnosticError;
+  rawSearchPayload?: unknown;
+  matchedResultsInSearchPage: AdminMercadoLivreDiagnosticItem[];
+  targetProductDetails: AdminMercadoLivreDiagnosticProductDetail[];
+};
+
 export type AdminMercadoLivreSyncResult = {
   provider: string;
   marketplace: string;
