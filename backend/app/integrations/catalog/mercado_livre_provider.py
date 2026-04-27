@@ -104,10 +104,14 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
         requested_offset = (requested_page - 1) * requested_limit
         search_context = self._discover_search_context(normalized_query, access_token=access_token)
         if access_token:
+            catalog_fetch_limit, catalog_fetch_offset = self._build_catalog_rerank_window(
+                requested_limit=requested_limit,
+                requested_page=requested_page,
+            )
             catalog_search_path = self._build_catalog_search_path(
                 query=normalized_query,
-                limit=requested_limit,
-                offset=requested_offset,
+                limit=catalog_fetch_limit,
+                offset=catalog_fetch_offset,
                 search_context=search_context,
             )
             catalog_payload = self._get_json(
@@ -121,9 +125,15 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
                 query=normalized_query,
                 items=catalog_items,
                 search_context=search_context,
-                limit=requested_limit,
+                limit=catalog_fetch_limit,
             )
             items = self._order_catalog_items_by_availability_confidence(items)
+            items = self._slice_catalog_reranked_page(
+                items=items,
+                requested_limit=requested_limit,
+                requested_offset=requested_offset,
+                catalog_fetch_offset=catalog_fetch_offset,
+            )
             return CatalogSearchResult(
                 provider=self.provider_name,
                 query=normalized_query,
@@ -757,6 +767,24 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
         normalized = normalized.lower()
         normalized = re.sub(r"\s+", " ", normalized)
         return normalized.strip()
+
+    def _build_catalog_rerank_window(self, *, requested_limit: int, requested_page: int) -> tuple[int, int]:
+        pool_limit = min(50, max(requested_limit * 4, requested_limit))
+        requested_offset = (requested_page - 1) * requested_limit
+        pool_offset = max(0, requested_offset - max(pool_limit - requested_limit, 0))
+        return pool_limit, pool_offset
+
+    def _slice_catalog_reranked_page(
+        self,
+        *,
+        items: list[CatalogSearchItem],
+        requested_limit: int,
+        requested_offset: int,
+        catalog_fetch_offset: int,
+    ) -> list[CatalogSearchItem]:
+        local_start = max(0, requested_offset - catalog_fetch_offset)
+        local_end = local_start + requested_limit
+        return items[local_start:local_end]
 
     def _rank_search_results(
         self,

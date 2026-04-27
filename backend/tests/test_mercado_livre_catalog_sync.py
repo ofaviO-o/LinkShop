@@ -294,7 +294,7 @@ def test_mercado_livre_search_uses_catalog_products_endpoint_when_token_exists(m
             return [{"domain_id": "MLB-CELLPHONES", "category_id": "MLB1055"}]
 
         if path.startswith("/products/search?"):
-            assert "limit=5" in path
+            assert "limit=20" in path
             assert "offset=0" in path
             return {
                 "results": [
@@ -350,8 +350,8 @@ def test_mercado_livre_search_uses_offset_for_paginated_catalog_requests(monkeyp
     result = provider.search_products(query="iphone 13", limit=24, page=2, access_token="token")
 
     product_search_path = next(path for path in requested_paths if path.startswith("/products/search?"))
-    assert "limit=24" in product_search_path
-    assert "offset=24" in product_search_path
+    assert "limit=50" in product_search_path
+    assert "offset=0" in product_search_path
     assert result.page == 2
     assert result.page_size == 24
     assert result.total == 96
@@ -630,6 +630,56 @@ def test_mercado_livre_search_orders_by_five_confidence_groups(monkeypatch) -> N
         "uncertain",
         "low",
     ]
+
+
+def test_mercado_livre_search_uses_reranked_pool_to_keep_unavailable_items_off_the_first_slot(monkeypatch) -> None:
+    provider = MercadoLivreCatalogProvider()
+
+    def fake_get_json(path: str, *, access_token: str | None = None) -> dict:
+        assert access_token == "token"
+
+        if path.startswith("/sites/MLB/domain_discovery/search?"):
+            return [{"domain_id": "MLB-CELLPHONES", "category_id": "MLB1055"}]
+
+        if path.startswith("/products/search?"):
+            return {
+                "results": [
+                    {
+                        "id": "MLB-LOW",
+                        "name": "iPhone 16 512 GB Rosa",
+                        "status": "active",
+                        "domain_id": "MLB-CELLPHONES",
+                        "thumbnail": "https://http2.mlstatic.com/low.jpg",
+                        "permalink": "https://www.mercadolivre.com.br/p/MLB-LOW",
+                    },
+                    {
+                        "id": "MLB-HIGH",
+                        "name": "iPhone 16 256 GB Rosa",
+                        "status": "active",
+                        "domain_id": "MLB-CELLPHONES",
+                        "thumbnail": "https://http2.mlstatic.com/high.jpg",
+                        "permalink": "https://www.mercadolivre.com.br/p/MLB-HIGH",
+                        "buy_box_winner": {"price": 5999.0, "currency_id": "BRL"},
+                    },
+                ],
+                "paging": {"total": 2, "offset": 0, "limit": 4},
+            }
+
+        raise AssertionError(f"Unexpected path: {path}")
+
+    def fake_fetch_html(url: str) -> tuple[str, str]:
+        if url.endswith("MLB-LOW"):
+            return ("<html><body>Este produto está indisponível</body></html>", url)
+        return ("<html><body>Comprar agora Adicionar ao carrinho</body></html>", url)
+
+    monkeypatch.setattr(provider, "_get_json", fake_get_json)
+    monkeypatch.setattr(AdminProductImportService, "_fetch_html_with_redirects", staticmethod(fake_fetch_html))
+    provider._page_availability_cache.clear()
+
+    result = provider.search_products(query="iphone 16", limit=1, page=1, access_token="token")
+
+    assert [item.external_id for item in result.items] == ["MLB-HIGH"]
+    assert result.items[0].availability_confidence == "high"
 
 
 def test_mercado_livre_search_penalizes_accessories_when_query_targets_main_product(monkeypatch) -> None:
