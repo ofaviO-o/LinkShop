@@ -442,7 +442,7 @@ def test_mercado_livre_search_keeps_catalog_results_without_falling_back_to_mark
     assert result.items[0].price is None
 
 
-def test_mercado_livre_search_removes_only_catalog_pages_with_explicit_unavailable_marker(monkeypatch) -> None:
+def test_mercado_livre_search_pushes_confirmed_unavailable_catalog_pages_to_the_end(monkeypatch) -> None:
     provider = MercadoLivreCatalogProvider()
 
     def fake_get_json(path: str, *, access_token: str | None = None) -> dict:
@@ -490,6 +490,8 @@ def test_mercado_livre_search_removes_only_catalog_pages_with_explicit_unavailab
                 "<html><body>Este produto está indisponível. Por favor, escolha outra variação.</body></html>",
                 url,
             )
+        if url.endswith("MLB40287817"):
+            return ("<html><body>Comprar agora Adicionar ao carrinho</body></html>", url)
         return ("<html><body>Produto listado sem marcador explícito de indisponibilidade.</body></html>", url)
 
     monkeypatch.setattr(provider, "_get_json", fake_get_json)
@@ -498,8 +500,8 @@ def test_mercado_livre_search_removes_only_catalog_pages_with_explicit_unavailab
 
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
-    assert {item.external_id for item in result.items} == {"MLB40287817", "MLB40287825"}
-    assert "MLB40287828" not in {item.external_id for item in result.items}
+    assert [item.external_id for item in result.items] == ["MLB40287817", "MLB40287825", "MLB40287828"]
+    assert [item.availability_confidence for item in result.items] == ["moderate", "uncertain", "low"]
 
 
 def test_mercado_livre_search_keeps_catalog_item_when_page_validation_fails(monkeypatch) -> None:
@@ -539,6 +541,95 @@ def test_mercado_livre_search_keeps_catalog_item_when_page_validation_fails(monk
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
     assert [item.external_id for item in result.items] == ["MLB40287817"]
+    assert result.items[0].availability_confidence == "uncertain"
+
+
+def test_mercado_livre_search_orders_by_five_confidence_groups(monkeypatch) -> None:
+    provider = MercadoLivreCatalogProvider()
+
+    def fake_get_json(path: str, *, access_token: str | None = None) -> dict:
+        assert access_token == "token"
+
+        if path.startswith("/sites/MLB/domain_discovery/search?"):
+            return [{"domain_id": "MLB-CELLPHONES", "category_id": "MLB1055"}]
+
+        if path.startswith("/products/search?"):
+            return {
+                "results": [
+                    {
+                        "id": "MLB-HIGH",
+                        "name": "iPhone 16 256 GB Azul",
+                        "status": "active",
+                        "domain_id": "MLB-CELLPHONES",
+                        "thumbnail": "https://http2.mlstatic.com/high.jpg",
+                        "permalink": "https://www.mercadolivre.com.br/p/MLB-HIGH",
+                        "buy_box_winner": {"price": 5999.0, "currency_id": "BRL"},
+                    },
+                    {
+                        "id": "MLB-MODERATE",
+                        "name": "iPhone 16 512 GB Azul",
+                        "status": "active",
+                        "domain_id": "MLB-CELLPHONES",
+                        "thumbnail": "https://http2.mlstatic.com/moderate.jpg",
+                        "permalink": "https://www.mercadolivre.com.br/p/MLB-MODERATE",
+                        "buy_box_winner": {"price": 6999.0, "currency_id": "BRL"},
+                    },
+                    {
+                        "id": "MLB-NEUTRAL",
+                        "name": "iPhone 16 128 GB Azul",
+                        "status": "active",
+                        "domain_id": "MLB-CELLPHONES",
+                        "thumbnail": "https://http2.mlstatic.com/neutral.jpg",
+                        "permalink": "https://www.mercadolivre.com.br/p/MLB-NEUTRAL",
+                    },
+                    {
+                        "id": "MLB-UNCERTAIN",
+                        "name": "iPhone 16 Azul",
+                        "status": "active",
+                        "domain_id": "MLB-CELLPHONES",
+                        "permalink": "https://www.mercadolivre.com.br/p/MLB-UNCERTAIN",
+                    },
+                    {
+                        "id": "MLB-LOW",
+                        "name": "iPhone 16 1 TB Azul",
+                        "status": "active",
+                        "domain_id": "MLB-CELLPHONES",
+                        "thumbnail": "https://http2.mlstatic.com/low.jpg",
+                        "permalink": "https://www.mercadolivre.com.br/p/MLB-LOW",
+                    },
+                ],
+                "paging": {"total": 5, "offset": 0, "limit": 5},
+            }
+
+        raise AssertionError(f"Unexpected path: {path}")
+
+    def fake_fetch_html(url: str) -> tuple[str, str]:
+        if url.endswith("MLB-HIGH"):
+            return ("<html><body>Comprar agora Adicionar ao carrinho</body></html>", url)
+        if url.endswith("MLB-LOW"):
+            return ("<html><body>Este produto está indisponível</body></html>", url)
+        return ("<html><body>Página de produto sem marcador conclusivo.</body></html>", url)
+
+    monkeypatch.setattr(provider, "_get_json", fake_get_json)
+    monkeypatch.setattr(AdminProductImportService, "_fetch_html_with_redirects", staticmethod(fake_fetch_html))
+    provider._page_availability_cache.clear()
+
+    result = provider.search_products(query="iphone 16", limit=5, access_token="token")
+
+    assert [item.external_id for item in result.items] == [
+        "MLB-HIGH",
+        "MLB-MODERATE",
+        "MLB-NEUTRAL",
+        "MLB-UNCERTAIN",
+        "MLB-LOW",
+    ]
+    assert [item.availability_confidence for item in result.items] == [
+        "high",
+        "moderate",
+        "neutral",
+        "uncertain",
+        "low",
+    ]
 
 
 def test_mercado_livre_search_penalizes_accessories_when_query_targets_main_product(monkeypatch) -> None:

@@ -34,7 +34,7 @@ class MercadoLivreSearchContext:
 class MercadoLivreCatalogProvider(BaseCatalogProvider):
     provider_name = "mercado-livre-catalog"
     marketplace = "mercado-livre"
-    _page_availability_cache: dict[str, bool | None] = {}
+    _page_availability_cache: dict[str, str | None] = {}
     _UNAVAILABLE_PAGE_MARKERS = (
         "este produto esta indisponivel",
         "por favor escolha outra variacao",
@@ -42,6 +42,18 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
         "escolha outra variacao",
         "produto indisponivel",
     )
+    _AVAILABLE_PAGE_MARKERS = (
+        "ver opcoes de compra",
+        "comprar agora",
+        "adicionar ao carrinho",
+    )
+    _AVAILABILITY_CONFIDENCE_PRIORITY = {
+        "high": 5,
+        "moderate": 4,
+        "neutral": 3,
+        "uncertain": 2,
+        "low": 1,
+    }
     _ACCESSORY_TERMS = {
         "acessorio",
         "acessorios",
@@ -111,7 +123,7 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
                 search_context=search_context,
                 limit=requested_limit,
             )
-            items = self._filter_confirmed_unavailable_catalog_items(items)
+            items = self._order_catalog_items_by_availability_confidence(items)
             return CatalogSearchResult(
                 provider=self.provider_name,
                 query=normalized_query,
@@ -645,55 +657,84 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
 
         return items
 
-    def _filter_confirmed_unavailable_catalog_items(self, items: list[CatalogSearchItem]) -> list[CatalogSearchItem]:
+    def _order_catalog_items_by_availability_confidence(self, items: list[CatalogSearchItem]) -> list[CatalogSearchItem]:
         if not items:
             return items
 
-        kept_items: list[CatalogSearchItem] = []
+        ranked_items: list[CatalogSearchItem] = []
         before_count = len(items)
-        removed_count = 0
+        confidence_counts = {key: 0 for key in self._AVAILABILITY_CONFIDENCE_PRIORITY}
 
         for item in items:
-            canonical_url = self._normalize_optional_text(item.canonical_url)
-            if not canonical_url or "/p/" not in canonical_url.lower():
-                kept_items.append(item)
-                continue
-
             try:
-                availability = self._validate_catalog_product_page_availability(canonical_url)
+                confidence, reason = self._classify_search_item_availability_confidence(item)
             except Exception as exc:  # noqa: BLE001 - keep search permissive
+                confidence = "uncertain"
+                reason = f"availability_validation_failed:{exc.__class__.__name__}"
                 self.logger.warning(
-                    "Mercado Livre availability validation failed url=%s reason=%s action=kept",
-                    canonical_url,
+                    "Mercado Livre availability validation failed url=%s reason=%s confidence=%s action=kept",
+                    item.canonical_url,
                     exc.__class__.__name__,
+                    confidence,
                 )
-                kept_items.append(item)
-                continue
-
-            if availability is False:
-                removed_count += 1
-                self.logger.info(
-                    "Mercado Livre availability validation url=%s availability=unavailable action=removed",
-                    canonical_url,
+            confidence_counts[confidence] += 1
+            ranked_items.append(
+                item.model_copy(
+                    update={
+                        "availability_confidence": confidence,
+                        "availability_reason": reason,
+                    }
                 )
-                continue
-
-            self.logger.info(
-                "Mercado Livre availability validation url=%s availability=%s action=kept",
-                canonical_url,
-                "available" if availability is True else "unknown",
             )
-            kept_items.append(item)
+            self.logger.info(
+                "Mercado Livre availability ranking url=%s confidence=%s reason=%s action=kept",
+                item.canonical_url,
+                confidence,
+                reason,
+            )
+
+        ranked_items.sort(
+            key=lambda current: (
+                self._AVAILABILITY_CONFIDENCE_PRIORITY.get(current.availability_confidence or "neutral", 0),
+                1 if current.price is not None else 0,
+            ),
+            reverse=True,
+        )
 
         self.logger.info(
-            "Mercado Livre availability validation summary before=%s after=%s removed=%s",
+            "Mercado Livre availability ranking summary before=%s after=%s buckets=%s",
             before_count,
-            len(kept_items),
-            removed_count,
+            len(ranked_items),
+            confidence_counts,
         )
-        return kept_items
+        return ranked_items
 
-    def _validate_catalog_product_page_availability(self, url: str) -> bool | None:
+    def _classify_search_item_availability_confidence(self, item: CatalogSearchItem) -> tuple[str, str]:
+        canonical_url = self._normalize_optional_text(item.canonical_url)
+        has_price = item.price is not None and item.price > 0
+        has_thumbnail = bool(self._normalize_optional_text(item.thumbnail_url))
+
+        if not canonical_url or "/p/" not in canonical_url.lower():
+            if has_price and has_thumbnail:
+                return ("moderate", "non_catalog_listing_with_price")
+            if has_price or has_thumbnail:
+                return ("neutral", "non_catalog_listing_partial_signals")
+            return ("uncertain", "non_catalog_listing_without_price_or_thumbnail")
+
+        availability = self._validate_catalog_product_page_availability(canonical_url)
+        if availability == "unavailable":
+            return ("low", "confirmed_unavailable_page")
+        if availability == "available":
+            if has_price:
+                return ("high", "catalog_page_with_purchase_signal_and_price")
+            return ("moderate", "catalog_page_with_purchase_signal")
+        if has_price and has_thumbnail:
+            return ("moderate", "catalog_page_unknown_with_price_and_thumbnail")
+        if has_thumbnail:
+            return ("neutral", "catalog_page_unknown_with_thumbnail")
+        return ("uncertain", "catalog_page_unknown_without_price")
+
+    def _validate_catalog_product_page_availability(self, url: str) -> str | None:
         cached = self._page_availability_cache.get(url)
         if cached is not None or url in self._page_availability_cache:
             return cached
@@ -701,11 +742,14 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
         html, _resolved_url = AdminProductImportService._fetch_html_with_redirects(url)
         normalized_html = self._normalize_page_text(html)
         if any(marker in normalized_html for marker in self._UNAVAILABLE_PAGE_MARKERS):
-            self._page_availability_cache[url] = False
-            return False
+            self._page_availability_cache[url] = "unavailable"
+            return "unavailable"
+        if any(marker in normalized_html for marker in self._AVAILABLE_PAGE_MARKERS):
+            self._page_availability_cache[url] = "available"
+            return "available"
 
-        self._page_availability_cache[url] = None
-        return None
+        self._page_availability_cache[url] = "unknown"
+        return "unknown"
 
     def _normalize_page_text(self, value: str) -> str:
         normalized = unicodedata.normalize("NFKD", value)

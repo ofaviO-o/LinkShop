@@ -50,6 +50,8 @@ class CatalogSearchItem(BaseModel):
     currency_id: str = "BRL"
     price: Decimal | None = None
     original_price: Decimal | None = None
+    availability_confidence: str | None = None
+    availability_reason: str | None = None
 
 
 class CatalogSearchResult(BaseModel):
