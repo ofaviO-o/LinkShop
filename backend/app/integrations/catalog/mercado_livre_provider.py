@@ -92,24 +92,23 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
                 access_token=access_token,
             )
             catalog_items = self._parse_catalog_product_search_results(catalog_payload)
-            if catalog_items:
-                total = self._extract_total_from_paging(catalog_payload, fallback=len(catalog_items))
-                total_pages = max(1, math.ceil(total / requested_limit)) if total else 1
-                items = self._rank_search_results(
-                    query=normalized_query,
-                    items=catalog_items,
-                    search_context=search_context,
-                    limit=requested_limit,
-                )
-                return CatalogSearchResult(
-                    provider=self.provider_name,
-                    query=normalized_query,
-                    page=requested_page,
-                    page_size=requested_limit,
-                    total=total,
-                    total_pages=total_pages,
-                    items=items,
-                )
+            total = self._extract_total_from_paging(catalog_payload, fallback=len(catalog_items))
+            total_pages = max(1, math.ceil(total / requested_limit)) if total else 1
+            items = self._rank_search_results(
+                query=normalized_query,
+                items=catalog_items,
+                search_context=search_context,
+                limit=requested_limit,
+            )
+            return CatalogSearchResult(
+                provider=self.provider_name,
+                query=normalized_query,
+                page=requested_page,
+                page_size=requested_limit,
+                total=total,
+                total_pages=total_pages,
+                items=items,
+            )
 
         try:
             marketplace_payload = self._get_json(
@@ -608,16 +607,12 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             if not product_id or not title:
                 continue
 
-            buy_box_winner = raw_product.get("buy_box_winner") if isinstance(raw_product.get("buy_box_winner"), dict) else {}
-            winner_item_id = self._normalize_reference_id(buy_box_winner.get("item_id"))
-            price = self._to_decimal(buy_box_winner.get("price"))
-
-            if not self._is_catalog_product_search_result_buyable(
-                raw_product,
-                winner_item_id=winner_item_id,
-                price=price,
-            ):
+            status = self._normalize_optional_text(raw_product.get("status")) or "active"
+            if status != "active":
                 continue
+
+            buy_box_winner = raw_product.get("buy_box_winner") if isinstance(raw_product.get("buy_box_winner"), dict) else {}
+            price = self._to_decimal(buy_box_winner.get("price"))
 
             items.append(
                 CatalogSearchItem(
@@ -637,26 +632,6 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             )
 
         return items
-
-    def _is_catalog_product_search_result_buyable(
-        self,
-        raw_product: dict,
-        *,
-        winner_item_id: str | None,
-        price: Decimal | None,
-    ) -> bool:
-        status = self._normalize_optional_text(raw_product.get("status")) or "active"
-        if status != "active":
-            return False
-
-        permalink = self._normalize_optional_text(raw_product.get("permalink"))
-        if not winner_item_id and not permalink:
-            return False
-
-        if price is None or price <= 0:
-            return False
-
-        return True
 
     def _rank_search_results(
         self,
