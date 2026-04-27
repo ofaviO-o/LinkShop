@@ -310,6 +310,18 @@ def test_mercado_livre_search_uses_catalog_products_endpoint_when_token_exists(m
                 "paging": {"total": 37, "offset": 0, "limit": 5},
             }
 
+        if path == "/products/MLB18500846":
+            return {
+                "id": "MLB18500846",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/iphone-13-128-gb-azul/p/MLB18500846",
+                "name": "iPhone 13 128 GB Azul",
+                "children_ids": [],
+                "buy_box_winner": {"item_id": "MLB111222333", "price": 4299.0, "currency_id": "BRL"},
+                "pictures": [{"id": "1", "url": "https://http2.mlstatic.com/detail.jpg"}],
+                "pickers": [],
+            }
+
         if path.startswith("/sites/MLB/search?"):
             raise AssertionError("Catalog search with access token should not depend on marketplace search")
 
@@ -382,9 +394,26 @@ def test_mercado_livre_search_uses_catalog_results_when_token_exists(monkeypatch
                 "paging": {"total": 1, "offset": 0, "limit": 5},
             }
 
+        if path == "/products/MLB18500846":
+            return {
+                "id": "MLB18500846",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/iphone-13-128-gb-azul/p/MLB18500846",
+                "name": "iPhone 13 128 GB Azul",
+                "children_ids": [],
+                "buy_box_winner": {"item_id": "MLB111222333", "price": 4299.0, "currency_id": "BRL"},
+                "pictures": [{"id": "1", "url": "https://http2.mlstatic.com/detail.jpg"}],
+                "pickers": [],
+            }
+
         raise AssertionError(f"Unexpected path: {path}")
 
     monkeypatch.setattr(provider, "_get_json", fake_get_json)
+    monkeypatch.setattr(
+        AdminProductImportService,
+        "_fetch_html_with_redirects",
+        staticmethod(lambda url: ("<html><body>Comprar agora Adicionar ao carrinho</body></html>", url)),
+    )
 
     result = provider.search_products(query="iphone 13", limit=5, access_token="token")
 
@@ -420,12 +449,28 @@ def test_mercado_livre_search_keeps_catalog_results_without_falling_back_to_mark
                 "paging": {"total": 787, "offset": 0, "limit": 5},
             }
 
+        if path == "/products/MLB40287828":
+            return {
+                "id": "MLB40287828",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/p/MLB40287828",
+                "name": "Apple iPhone 16 Plus (512 GB) - Rosa",
+                "children_ids": [],
+                "buy_box_winner": None,
+                "pickers": [],
+            }
+
         if path.startswith("/sites/MLB/search?"):
             raise AssertionError("Authenticated catalog search should not fall back to marketplace listings search")
 
         raise AssertionError(f"Unexpected path: {path}")
 
     monkeypatch.setattr(provider, "_get_json", fake_get_json)
+    monkeypatch.setattr(
+        AdminProductImportService,
+        "_fetch_html_with_redirects",
+        staticmethod(lambda url: ("<html><body>Comprar agora Adicionar ao carrinho</body></html>", url)),
+    )
     monkeypatch.setattr(
         AdminProductImportService,
         "_fetch_html_with_redirects",
@@ -436,13 +481,10 @@ def test_mercado_livre_search_keeps_catalog_results_without_falling_back_to_mark
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
     assert any(path.startswith("/products/search?") for path in requested_paths)
-    assert len(result.items) == 1
-    assert result.items[0].external_id == "MLB40287828"
-    assert result.items[0].title == "Apple iPhone 16 Plus (512 GB) - Rosa"
-    assert result.items[0].price is None
+    assert result.items == []
 
 
-def test_mercado_livre_search_pushes_confirmed_unavailable_catalog_pages_to_the_end(monkeypatch) -> None:
+def test_mercado_livre_search_keeps_only_confirmed_available_catalog_pages(monkeypatch) -> None:
     provider = MercadoLivreCatalogProvider()
 
     def fake_get_json(path: str, *, access_token: str | None = None) -> dict:
@@ -482,6 +524,39 @@ def test_mercado_livre_search_pushes_confirmed_unavailable_catalog_pages_to_the_
                 "paging": {"total": 3, "offset": 0, "limit": 5},
             }
 
+        if path == "/products/MLB40287828":
+            return {
+                "id": "MLB40287828",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/p/MLB40287828",
+                "name": "Apple iPhone 16 Plus (512 GB) - Rosa",
+                "children_ids": [],
+                "buy_box_winner": None,
+                "pickers": [],
+            }
+
+        if path == "/products/MLB40287817":
+            return {
+                "id": "MLB40287817",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/p/MLB40287817",
+                "name": "Apple iPhone 16 Plus (256 GB) - Rosa",
+                "children_ids": [],
+                "buy_box_winner": None,
+                "pickers": [],
+            }
+
+        if path == "/products/MLB40287825":
+            return {
+                "id": "MLB40287825",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/p/MLB40287825",
+                "name": "Apple iPhone 16 Plus (128 GB) - Ultramarino",
+                "children_ids": [],
+                "buy_box_winner": None,
+                "pickers": [],
+            }
+
         raise AssertionError(f"Unexpected path: {path}")
 
     def fake_fetch_html(url: str) -> tuple[str, str]:
@@ -500,8 +575,8 @@ def test_mercado_livre_search_pushes_confirmed_unavailable_catalog_pages_to_the_
 
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
-    assert [item.external_id for item in result.items] == ["MLB40287817", "MLB40287825", "MLB40287828"]
-    assert [item.availability_confidence for item in result.items] == ["moderate", "uncertain", "low"]
+    assert [item.external_id for item in result.items] == ["MLB40287817"]
+    assert [item.availability_confidence for item in result.items] == ["moderate"]
 
 
 def test_mercado_livre_search_keeps_catalog_item_when_page_validation_fails(monkeypatch) -> None:
@@ -528,6 +603,17 @@ def test_mercado_livre_search_keeps_catalog_item_when_page_validation_fails(monk
                 "paging": {"total": 1, "offset": 0, "limit": 5},
             }
 
+        if path == "/products/MLB40287817":
+            return {
+                "id": "MLB40287817",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/p/MLB40287817",
+                "name": "Apple iPhone 16 Plus (256 GB) - Rosa",
+                "children_ids": [],
+                "buy_box_winner": None,
+                "pickers": [],
+            }
+
         raise AssertionError(f"Unexpected path: {path}")
 
     def raise_fetch_error(url: str) -> tuple[str, str]:
@@ -540,8 +626,7 @@ def test_mercado_livre_search_keeps_catalog_item_when_page_validation_fails(monk
 
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
-    assert [item.external_id for item in result.items] == ["MLB40287817"]
-    assert result.items[0].availability_confidence == "uncertain"
+    assert result.items == []
 
 
 def test_mercado_livre_search_orders_by_five_confidence_groups(monkeypatch) -> None:
@@ -601,11 +686,68 @@ def test_mercado_livre_search_orders_by_five_confidence_groups(monkeypatch) -> N
                 "paging": {"total": 5, "offset": 0, "limit": 5},
             }
 
+        if path == "/products/MLB-HIGH":
+            return {
+                "id": "MLB-HIGH",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/p/MLB-HIGH",
+                "name": "iPhone 16 256 GB Azul",
+                "children_ids": [],
+                "buy_box_winner": {"item_id": "MLBITEMHIGH", "price": 5999.0, "currency_id": "BRL"},
+                "pickers": [],
+            }
+
+        if path == "/products/MLB-MODERATE":
+            return {
+                "id": "MLB-MODERATE",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/p/MLB-MODERATE",
+                "name": "iPhone 16 512 GB Azul",
+                "children_ids": [],
+                "buy_box_winner": None,
+                "pickers": [],
+            }
+
+        if path == "/products/MLB-NEUTRAL":
+            return {
+                "id": "MLB-NEUTRAL",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/p/MLB-NEUTRAL",
+                "name": "iPhone 16 128 GB Azul",
+                "children_ids": [],
+                "buy_box_winner": None,
+                "pickers": [],
+            }
+
+        if path == "/products/MLB-UNCERTAIN":
+            return {
+                "id": "MLB-UNCERTAIN",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/p/MLB-UNCERTAIN",
+                "name": "iPhone 16 Azul",
+                "children_ids": [],
+                "buy_box_winner": None,
+                "pickers": [],
+            }
+
+        if path == "/products/MLB-LOW":
+            return {
+                "id": "MLB-LOW",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/p/MLB-LOW",
+                "name": "iPhone 16 1 TB Azul",
+                "children_ids": [],
+                "buy_box_winner": None,
+                "pickers": [],
+            }
+
         raise AssertionError(f"Unexpected path: {path}")
 
     def fake_fetch_html(url: str) -> tuple[str, str]:
         if url.endswith("MLB-HIGH"):
             return ("<html><body>Comprar agora Adicionar ao carrinho</body></html>", url)
+        if url.endswith("MLB-MODERATE"):
+            return ("<html><body>Ver opcoes de compra</body></html>", url)
         if url.endswith("MLB-LOW"):
             return ("<html><body>Este produto está indisponível</body></html>", url)
         return ("<html><body>Página de produto sem marcador conclusivo.</body></html>", url)
@@ -616,19 +758,10 @@ def test_mercado_livre_search_orders_by_five_confidence_groups(monkeypatch) -> N
 
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
-    assert [item.external_id for item in result.items] == [
-        "MLB-HIGH",
-        "MLB-MODERATE",
-        "MLB-NEUTRAL",
-        "MLB-UNCERTAIN",
-        "MLB-LOW",
-    ]
+    assert [item.external_id for item in result.items] == ["MLB-HIGH", "MLB-MODERATE"]
     assert [item.availability_confidence for item in result.items] == [
         "high",
         "moderate",
-        "neutral",
-        "uncertain",
-        "low",
     ]
 
 
@@ -663,6 +796,28 @@ def test_mercado_livre_search_uses_reranked_pool_to_keep_unavailable_items_off_t
                     },
                 ],
                 "paging": {"total": 2, "offset": 0, "limit": 4},
+            }
+
+        if path == "/products/MLB-LOW":
+            return {
+                "id": "MLB-LOW",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/p/MLB-LOW",
+                "name": "iPhone 16 512 GB Rosa",
+                "children_ids": [],
+                "buy_box_winner": None,
+                "pickers": [],
+            }
+
+        if path == "/products/MLB-HIGH":
+            return {
+                "id": "MLB-HIGH",
+                "status": "active",
+                "permalink": "https://www.mercadolivre.com.br/p/MLB-HIGH",
+                "name": "iPhone 16 256 GB Rosa",
+                "children_ids": [],
+                "buy_box_winner": {"item_id": "MLBITEMHIGH", "price": 5999.0, "currency_id": "BRL"},
+                "pickers": [],
             }
 
         raise AssertionError(f"Unexpected path: {path}")

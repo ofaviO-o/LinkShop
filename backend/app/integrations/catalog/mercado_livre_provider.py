@@ -127,7 +127,7 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
                 search_context=search_context,
                 limit=catalog_fetch_limit,
             )
-            items = self._order_catalog_items_by_availability_confidence(items)
+            items = self._resolve_catalog_display_items(items, access_token=access_token)
             items = self._slice_catalog_reranked_page(
                 items=items,
                 requested_limit=requested_limit,
@@ -719,6 +719,133 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
         )
         return ranked_items
 
+    def _resolve_catalog_display_items(
+        self,
+        items: list[CatalogSearchItem],
+        *,
+        access_token: str | None,
+    ) -> list[CatalogSearchItem]:
+        if not items:
+            return items
+
+        resolved_items: list[CatalogSearchItem] = []
+        rejected_count = 0
+        for item in items:
+            resolved_item = self._resolve_catalog_display_item(item=item, access_token=access_token)
+            if resolved_item is None:
+                rejected_count += 1
+                continue
+            resolved_items.append(resolved_item)
+
+        resolved_items.sort(
+            key=lambda current: (
+                self._AVAILABILITY_CONFIDENCE_PRIORITY.get(current.availability_confidence or "uncertain", 0),
+                1 if current.price is not None else 0,
+            ),
+            reverse=True,
+        )
+        self.logger.info(
+            "Mercado Livre strict availability filter before=%s after=%s rejected=%s",
+            len(items),
+            len(resolved_items),
+            rejected_count,
+        )
+        return resolved_items
+
+    def _resolve_catalog_display_item(
+        self,
+        *,
+        item: CatalogSearchItem,
+        access_token: str | None,
+    ) -> CatalogSearchItem | None:
+        product = self._get_optional_json(f"/products/{quote(item.external_id)}", access_token=access_token)
+        if not isinstance(product, dict):
+            self.logger.info(
+                "Mercado Livre strict availability external_id=%s decision=rejected reason=missing_product_detail",
+                item.external_id,
+            )
+            return None
+
+        product_status = self._normalize_optional_text(product.get("status")) or "inactive"
+        if product_status != "active":
+            self.logger.info(
+                "Mercado Livre strict availability external_id=%s decision=rejected reason=inactive_product",
+                item.external_id,
+            )
+            return None
+
+        children_ids = product.get("children_ids")
+        if isinstance(children_ids, list) and children_ids:
+            self.logger.info(
+                "Mercado Livre strict availability external_id=%s decision=rejected reason=parent_product",
+                item.external_id,
+            )
+            return None
+
+        canonical_url = self._normalize_optional_text(product.get("permalink")) or self._normalize_optional_text(item.canonical_url)
+        if not canonical_url:
+            self.logger.info(
+                "Mercado Livre strict availability external_id=%s decision=rejected reason=missing_permalink",
+                item.external_id,
+            )
+            return None
+
+        if self._is_current_product_disabled_in_pickers(item.external_id, product.get("pickers")):
+            self.logger.info(
+                "Mercado Livre strict availability external_id=%s decision=rejected reason=picker_disabled",
+                item.external_id,
+            )
+            return None
+
+        try:
+            page_availability = self._validate_catalog_product_page_availability(canonical_url)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning(
+                "Mercado Livre strict availability external_id=%s decision=rejected reason=page_validation_failed error=%s",
+                item.external_id,
+                exc.__class__.__name__,
+            )
+            return None
+        if page_availability == "unavailable":
+            self.logger.info(
+                "Mercado Livre strict availability external_id=%s decision=rejected reason=page_unavailable",
+                item.external_id,
+            )
+            return None
+
+        buy_box_winner = product.get("buy_box_winner") if isinstance(product.get("buy_box_winner"), dict) else {}
+        buy_box_price = self._to_decimal(buy_box_winner.get("price"))
+        has_buy_box_signal = bool(
+            self._normalize_reference_id(buy_box_winner.get("item_id"))
+            or (buy_box_price is not None and buy_box_price > 0)
+        )
+        if not has_buy_box_signal and page_availability != "available":
+            self.logger.info(
+                "Mercado Livre strict availability external_id=%s decision=rejected reason=missing_positive_purchase_signal",
+                item.external_id,
+            )
+            return None
+
+        confidence = "high" if has_buy_box_signal else "moderate"
+        reason = "buy_box_winner" if has_buy_box_signal else "page_purchase_signal"
+        resolved_item = item.model_copy(
+            update={
+                "canonical_url": canonical_url,
+                "thumbnail_url": self._extract_catalog_product_thumbnail(product) or item.thumbnail_url,
+                "price": buy_box_price or item.price,
+                "original_price": self._to_decimal(buy_box_winner.get("original_price")) or item.original_price,
+                "availability_confidence": confidence,
+                "availability_reason": reason,
+            }
+        )
+        self.logger.info(
+            "Mercado Livre strict availability external_id=%s decision=accepted confidence=%s reason=%s",
+            item.external_id,
+            confidence,
+            reason,
+        )
+        return resolved_item
+
     def _classify_search_item_availability_confidence(self, item: CatalogSearchItem) -> tuple[str, str]:
         canonical_url = self._normalize_optional_text(item.canonical_url)
         has_price = item.price is not None and item.price > 0
@@ -743,6 +870,28 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
         if has_thumbnail:
             return ("neutral", "catalog_page_unknown_with_thumbnail")
         return ("uncertain", "catalog_page_unknown_without_price")
+
+    def _is_current_product_disabled_in_pickers(self, product_id: str, pickers: object) -> bool:
+        if not isinstance(pickers, list):
+            return False
+
+        normalized_product_id = product_id.strip().upper()
+        for picker in pickers:
+            if not isinstance(picker, dict):
+                continue
+            products = picker.get("products")
+            if not isinstance(products, list):
+                continue
+            for picker_product in products:
+                if not isinstance(picker_product, dict):
+                    continue
+                picker_product_id = self._normalize_reference_id(picker_product.get("product_id"))
+                if picker_product_id != normalized_product_id:
+                    continue
+                tags = picker_product.get("tags")
+                if isinstance(tags, list) and any(str(tag).strip().lower() == "disabled" for tag in tags):
+                    return True
+        return False
 
     def _validate_catalog_product_page_availability(self, url: str) -> str | None:
         cached = self._page_availability_cache.get(url)
