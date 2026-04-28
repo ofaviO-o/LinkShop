@@ -600,6 +600,14 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             if not item_id or not title:
                 continue
 
+            status = self._normalize_optional_text(raw_item.get("status")) or "active"
+            if status != "active":
+                continue
+
+            available_quantity = self._to_int(raw_item.get("available_quantity"))
+            if available_quantity is not None and available_quantity <= 0:
+                continue
+
             items.append(
                 CatalogSearchItem(
                     marketplace=self.marketplace,
