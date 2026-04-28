@@ -132,7 +132,7 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
 
         try:
             marketplace_payload = self._get_json(
-                f"/sites/{settings.mercado_livre_site_id}/search?q={quote(normalized_query)}&limit={requested_limit}&offset={requested_offset}",
+                f"/sites/{settings.mercado_livre_site_id}/search?q={quote(normalized_query)}&buying_mode=buy_it_now&limit={requested_limit}&offset={requested_offset}",
                 access_token=access_token,
             )
         except ExternalServiceError:
@@ -608,6 +608,10 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             if available_quantity is not None and available_quantity <= 0:
                 continue
 
+            buying_mode = self._normalize_optional_text(raw_item.get("buying_mode"))
+            if buying_mode and buying_mode != "buy_it_now":
+                continue
+
             items.append(
                 CatalogSearchItem(
                     marketplace=self.marketplace,
@@ -641,6 +645,9 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
 
             buy_box_winner = raw_product.get("buy_box_winner") if isinstance(raw_product.get("buy_box_winner"), dict) else {}
             price = self._to_decimal(buy_box_winner.get("price"))
+
+            if price is None or price <= 0:
+                continue
 
             items.append(
                 CatalogSearchItem(
