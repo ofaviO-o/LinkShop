@@ -481,7 +481,8 @@ def test_mercado_livre_search_keeps_catalog_results_without_falling_back_to_mark
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
     assert any(path.startswith("/products/search?") for path in requested_paths)
-    assert result.items == []
+    assert [item.external_id for item in result.items] == ["MLB40287828"]
+    assert result.items[0].availability_confidence == "neutral"
 
 
 def test_mercado_livre_search_keeps_only_confirmed_available_catalog_pages(monkeypatch) -> None:
@@ -575,8 +576,8 @@ def test_mercado_livre_search_keeps_only_confirmed_available_catalog_pages(monke
 
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
-    assert [item.external_id for item in result.items] == ["MLB40287817"]
-    assert [item.availability_confidence for item in result.items] == ["moderate"]
+    assert [item.external_id for item in result.items] == ["MLB40287817", "MLB40287825"]
+    assert [item.availability_confidence for item in result.items] == ["moderate", "neutral"]
 
 
 def test_mercado_livre_search_keeps_catalog_item_when_page_validation_fails(monkeypatch) -> None:
@@ -626,7 +627,8 @@ def test_mercado_livre_search_keeps_catalog_item_when_page_validation_fails(monk
 
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
-    assert result.items == []
+    assert [item.external_id for item in result.items] == ["MLB40287817"]
+    assert result.items[0].availability_confidence == "neutral"
 
 
 def test_mercado_livre_search_orders_by_five_confidence_groups(monkeypatch) -> None:
@@ -758,10 +760,12 @@ def test_mercado_livre_search_orders_by_five_confidence_groups(monkeypatch) -> N
 
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
-    assert [item.external_id for item in result.items] == ["MLB-HIGH", "MLB-MODERATE"]
+    assert [item.external_id for item in result.items] == ["MLB-HIGH", "MLB-MODERATE", "MLB-NEUTRAL", "MLB-UNCERTAIN"]
     assert [item.availability_confidence for item in result.items] == [
         "high",
         "moderate",
+        "neutral",
+        "neutral",
     ]
 
 

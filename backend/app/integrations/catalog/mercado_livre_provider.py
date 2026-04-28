@@ -801,11 +801,11 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             page_availability = self._validate_catalog_product_page_availability(canonical_url)
         except Exception as exc:  # noqa: BLE001
             self.logger.warning(
-                "Mercado Livre strict availability external_id=%s decision=rejected reason=page_validation_failed error=%s",
+                "Mercado Livre strict availability external_id=%s decision=accepted reason=page_validation_failed error=%s",
                 item.external_id,
                 exc.__class__.__name__,
             )
-            return None
+            page_availability = "unknown"
         if page_availability == "unavailable":
             self.logger.info(
                 "Mercado Livre strict availability external_id=%s decision=rejected reason=page_unavailable",
@@ -819,15 +819,15 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             self._normalize_reference_id(buy_box_winner.get("item_id"))
             or (buy_box_price is not None and buy_box_price > 0)
         )
-        if not has_buy_box_signal and page_availability != "available":
-            self.logger.info(
-                "Mercado Livre strict availability external_id=%s decision=rejected reason=missing_positive_purchase_signal",
-                item.external_id,
-            )
-            return None
-
-        confidence = "high" if has_buy_box_signal else "moderate"
-        reason = "buy_box_winner" if has_buy_box_signal else "page_purchase_signal"
+        if has_buy_box_signal:
+            confidence = "high"
+            reason = "buy_box_winner"
+        elif page_availability == "available":
+            confidence = "moderate"
+            reason = "page_purchase_signal"
+        else:
+            confidence = "neutral"
+            reason = "active_child_product_without_negative_signal"
         resolved_item = item.model_copy(
             update={
                 "canonical_url": canonical_url,
