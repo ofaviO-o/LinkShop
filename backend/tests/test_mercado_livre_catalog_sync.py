@@ -319,7 +319,7 @@ def test_mercado_livre_search_uses_catalog_products_endpoint_when_token_exists(m
                 "children_ids": [],
                 "buy_box_winner": {"item_id": "MLB111222333", "price": 4299.0, "currency_id": "BRL"},
                 "pictures": [{"id": "1", "url": "https://http2.mlstatic.com/detail.jpg"}],
-                "pickers": [],
+                "pickers": [{"picker_id": "INTERNAL_MEMORY", "products": [{"product_id": "MLB40287828", "tags": ["selected", "disabled"]}]}],
             }
 
         if path.startswith("/sites/MLB/search?"):
@@ -403,17 +403,12 @@ def test_mercado_livre_search_uses_catalog_results_when_token_exists(monkeypatch
                 "children_ids": [],
                 "buy_box_winner": {"item_id": "MLB111222333", "price": 4299.0, "currency_id": "BRL"},
                 "pictures": [{"id": "1", "url": "https://http2.mlstatic.com/detail.jpg"}],
-                "pickers": [],
+                "pickers": [{"picker_id": "INTERNAL_MEMORY", "products": [{"product_id": "MLB40287817", "tags": ["selected"]}]}],
             }
 
         raise AssertionError(f"Unexpected path: {path}")
 
     monkeypatch.setattr(provider, "_get_json", fake_get_json)
-    monkeypatch.setattr(
-        AdminProductImportService,
-        "_fetch_html_with_redirects",
-        staticmethod(lambda url: ("<html><body>Comprar agora Adicionar ao carrinho</body></html>", url)),
-    )
 
     result = provider.search_products(query="iphone 13", limit=5, access_token="token")
 
@@ -457,7 +452,7 @@ def test_mercado_livre_search_keeps_catalog_results_without_falling_back_to_mark
                 "name": "Apple iPhone 16 Plus (512 GB) - Rosa",
                 "children_ids": [],
                 "buy_box_winner": None,
-                "pickers": [],
+                "pickers": [{"picker_id": "INTERNAL_MEMORY", "products": [{"product_id": "MLB40287828", "tags": ["selected"]}]}],
             }
 
         if path.startswith("/sites/MLB/search?"):
@@ -466,26 +461,15 @@ def test_mercado_livre_search_keeps_catalog_results_without_falling_back_to_mark
         raise AssertionError(f"Unexpected path: {path}")
 
     monkeypatch.setattr(provider, "_get_json", fake_get_json)
-    monkeypatch.setattr(
-        AdminProductImportService,
-        "_fetch_html_with_redirects",
-        staticmethod(lambda url: ("<html><body>Comprar agora Adicionar ao carrinho</body></html>", url)),
-    )
-    monkeypatch.setattr(
-        AdminProductImportService,
-        "_fetch_html_with_redirects",
-        staticmethod(lambda url: ("<html><body>Sem marcador explicito de indisponibilidade.</body></html>", url)),
-    )
-    provider._page_availability_cache.clear()
 
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
     assert any(path.startswith("/products/search?") for path in requested_paths)
     assert [item.external_id for item in result.items] == ["MLB40287828"]
-    assert result.items[0].availability_confidence == "neutral"
+    assert result.items[0].availability_confidence == "moderate"
 
 
-def test_mercado_livre_search_keeps_only_confirmed_available_catalog_pages(monkeypatch) -> None:
+def test_mercado_livre_search_rejects_disabled_picker_variant_but_keeps_active_children(monkeypatch) -> None:
     provider = MercadoLivreCatalogProvider()
 
     def fake_get_json(path: str, *, access_token: str | None = None) -> dict:
@@ -533,7 +517,7 @@ def test_mercado_livre_search_keeps_only_confirmed_available_catalog_pages(monke
                 "name": "Apple iPhone 16 Plus (512 GB) - Rosa",
                 "children_ids": [],
                 "buy_box_winner": None,
-                "pickers": [],
+                "pickers": [{"picker_id": "COLOR", "products": [{"product_id": "MLB40287828", "tags": ["selected"]}]}],
             }
 
         if path == "/products/MLB40287817":
@@ -544,7 +528,7 @@ def test_mercado_livre_search_keeps_only_confirmed_available_catalog_pages(monke
                 "name": "Apple iPhone 16 Plus (256 GB) - Rosa",
                 "children_ids": [],
                 "buy_box_winner": None,
-                "pickers": [],
+                "pickers": [{"picker_id": "INTERNAL_MEMORY", "products": [{"product_id": "MLB40287817", "tags": ["selected", "disabled"]}]}],
             }
 
         if path == "/products/MLB40287825":
@@ -560,27 +544,15 @@ def test_mercado_livre_search_keeps_only_confirmed_available_catalog_pages(monke
 
         raise AssertionError(f"Unexpected path: {path}")
 
-    def fake_fetch_html(url: str) -> tuple[str, str]:
-        if url.endswith("MLB40287828"):
-            return (
-                "<html><body>Este produto está indisponível. Por favor, escolha outra variação.</body></html>",
-                url,
-            )
-        if url.endswith("MLB40287817"):
-            return ("<html><body>Comprar agora Adicionar ao carrinho</body></html>", url)
-        return ("<html><body>Produto listado sem marcador explícito de indisponibilidade.</body></html>", url)
-
     monkeypatch.setattr(provider, "_get_json", fake_get_json)
-    monkeypatch.setattr(AdminProductImportService, "_fetch_html_with_redirects", staticmethod(fake_fetch_html))
-    provider._page_availability_cache.clear()
 
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
-    assert [item.external_id for item in result.items] == ["MLB40287817", "MLB40287825"]
+    assert [item.external_id for item in result.items] == ["MLB40287828", "MLB40287825"]
     assert [item.availability_confidence for item in result.items] == ["moderate", "neutral"]
 
 
-def test_mercado_livre_search_keeps_catalog_item_when_page_validation_fails(monkeypatch) -> None:
+def test_mercado_livre_search_rejects_parent_catalog_product(monkeypatch) -> None:
     provider = MercadoLivreCatalogProvider()
 
     def fake_get_json(path: str, *, access_token: str | None = None) -> dict:
@@ -607,31 +579,24 @@ def test_mercado_livre_search_keeps_catalog_item_when_page_validation_fails(monk
         if path == "/products/MLB40287817":
             return {
                 "id": "MLB40287817",
-                "status": "active",
+                "status": "inactive",
                 "permalink": "https://www.mercadolivre.com.br/p/MLB40287817",
                 "name": "Apple iPhone 16 Plus (256 GB) - Rosa",
-                "children_ids": [],
+                "children_ids": ["MLB40287818", "MLB40287819"],
                 "buy_box_winner": None,
                 "pickers": [],
             }
 
         raise AssertionError(f"Unexpected path: {path}")
 
-    def raise_fetch_error(url: str) -> tuple[str, str]:
-        _ = url
-        raise TimeoutError("timeout")
-
     monkeypatch.setattr(provider, "_get_json", fake_get_json)
-    monkeypatch.setattr(AdminProductImportService, "_fetch_html_with_redirects", staticmethod(raise_fetch_error))
-    provider._page_availability_cache.clear()
 
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
-    assert [item.external_id for item in result.items] == ["MLB40287817"]
-    assert result.items[0].availability_confidence == "neutral"
+    assert result.items == []
 
 
-def test_mercado_livre_search_orders_by_five_confidence_groups(monkeypatch) -> None:
+def test_mercado_livre_search_orders_documented_catalog_confidence_groups(monkeypatch) -> None:
     provider = MercadoLivreCatalogProvider()
 
     def fake_get_json(path: str, *, access_token: str | None = None) -> dict:
@@ -707,7 +672,7 @@ def test_mercado_livre_search_orders_by_five_confidence_groups(monkeypatch) -> N
                 "name": "iPhone 16 512 GB Azul",
                 "children_ids": [],
                 "buy_box_winner": None,
-                "pickers": [],
+                "pickers": [{"picker_id": "COLOR", "products": [{"product_id": "MLB-MODERATE", "tags": ["selected"]}]}],
             }
 
         if path == "/products/MLB-NEUTRAL":
@@ -740,23 +705,12 @@ def test_mercado_livre_search_orders_by_five_confidence_groups(monkeypatch) -> N
                 "name": "iPhone 16 1 TB Azul",
                 "children_ids": [],
                 "buy_box_winner": None,
-                "pickers": [],
+                "pickers": [{"picker_id": "INTERNAL_MEMORY", "products": [{"product_id": "MLB-LOW", "tags": ["selected", "disabled"]}]}],
             }
 
         raise AssertionError(f"Unexpected path: {path}")
 
-    def fake_fetch_html(url: str) -> tuple[str, str]:
-        if url.endswith("MLB-HIGH"):
-            return ("<html><body>Comprar agora Adicionar ao carrinho</body></html>", url)
-        if url.endswith("MLB-MODERATE"):
-            return ("<html><body>Ver opcoes de compra</body></html>", url)
-        if url.endswith("MLB-LOW"):
-            return ("<html><body>Este produto está indisponível</body></html>", url)
-        return ("<html><body>Página de produto sem marcador conclusivo.</body></html>", url)
-
     monkeypatch.setattr(provider, "_get_json", fake_get_json)
-    monkeypatch.setattr(AdminProductImportService, "_fetch_html_with_redirects", staticmethod(fake_fetch_html))
-    provider._page_availability_cache.clear()
 
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
@@ -810,7 +764,7 @@ def test_mercado_livre_search_uses_reranked_pool_to_keep_unavailable_items_off_t
                 "name": "iPhone 16 512 GB Rosa",
                 "children_ids": [],
                 "buy_box_winner": None,
-                "pickers": [],
+                "pickers": [{"picker_id": "COLOR", "products": [{"product_id": "MLB-LOW", "tags": ["selected", "disabled"]}]}],
             }
 
         if path == "/products/MLB-HIGH":
@@ -826,14 +780,7 @@ def test_mercado_livre_search_uses_reranked_pool_to_keep_unavailable_items_off_t
 
         raise AssertionError(f"Unexpected path: {path}")
 
-    def fake_fetch_html(url: str) -> tuple[str, str]:
-        if url.endswith("MLB-LOW"):
-            return ("<html><body>Este produto está indisponível</body></html>", url)
-        return ("<html><body>Comprar agora Adicionar ao carrinho</body></html>", url)
-
     monkeypatch.setattr(provider, "_get_json", fake_get_json)
-    monkeypatch.setattr(AdminProductImportService, "_fetch_html_with_redirects", staticmethod(fake_fetch_html))
-    provider._page_availability_cache.clear()
 
     result = provider.search_products(query="iphone 16", limit=1, page=1, access_token="token")
 
@@ -882,3 +829,4 @@ def test_mercado_livre_search_penalizes_accessories_when_query_targets_main_prod
 
     assert result.items[0].external_id == "MLB1"
     assert "Automotivo" not in result.items[0].title
+

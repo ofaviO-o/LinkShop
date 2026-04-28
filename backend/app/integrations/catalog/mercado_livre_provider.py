@@ -2,7 +2,6 @@ import json
 import math
 import logging
 import re
-import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -34,19 +33,6 @@ class MercadoLivreSearchContext:
 class MercadoLivreCatalogProvider(BaseCatalogProvider):
     provider_name = "mercado-livre-catalog"
     marketplace = "mercado-livre"
-    _page_availability_cache: dict[str, str | None] = {}
-    _UNAVAILABLE_PAGE_MARKERS = (
-        "este produto esta indisponivel",
-        "por favor escolha outra variacao",
-        "por favor escolha outra variacao.",
-        "escolha outra variacao",
-        "produto indisponivel",
-    )
-    _AVAILABLE_PAGE_MARKERS = (
-        "ver opcoes de compra",
-        "comprar agora",
-        "adicionar ao carrinho",
-    )
     _AVAILABILITY_CONFIDENCE_PRIORITY = {
         "high": 5,
         "moderate": 4,
@@ -760,11 +746,19 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
     ) -> CatalogSearchItem | None:
         product = self._get_optional_json(f"/products/{quote(item.external_id)}", access_token=access_token)
         if not isinstance(product, dict):
-            self.logger.info(
-                "Mercado Livre strict availability external_id=%s decision=rejected reason=missing_product_detail",
+            confidence, reason = self._classify_search_item_availability_confidence(item)
+            self.logger.warning(
+                "Mercado Livre strict availability external_id=%s decision=kept reason=missing_product_detail confidence=%s fallback_reason=%s",
                 item.external_id,
+                confidence,
+                reason,
             )
-            return None
+            return item.model_copy(
+                update={
+                    "availability_confidence": confidence,
+                    "availability_reason": f"missing_product_detail:{reason}",
+                }
+            )
 
         product_status = self._normalize_optional_text(product.get("status")) or "inactive"
         if product_status != "active":
@@ -797,22 +791,6 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             )
             return None
 
-        try:
-            page_availability = self._validate_catalog_product_page_availability(canonical_url)
-        except Exception as exc:  # noqa: BLE001
-            self.logger.warning(
-                "Mercado Livre strict availability external_id=%s decision=accepted reason=page_validation_failed error=%s",
-                item.external_id,
-                exc.__class__.__name__,
-            )
-            page_availability = "unknown"
-        if page_availability == "unavailable":
-            self.logger.info(
-                "Mercado Livre strict availability external_id=%s decision=rejected reason=page_unavailable",
-                item.external_id,
-            )
-            return None
-
         buy_box_winner = product.get("buy_box_winner") if isinstance(product.get("buy_box_winner"), dict) else {}
         buy_box_price = self._to_decimal(buy_box_winner.get("price"))
         has_buy_box_signal = bool(
@@ -822,12 +800,12 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
         if has_buy_box_signal:
             confidence = "high"
             reason = "buy_box_winner"
-        elif page_availability == "available":
+        elif isinstance(product.get("pickers"), list) and product.get("pickers"):
             confidence = "moderate"
-            reason = "page_purchase_signal"
+            reason = "active_child_with_pickers"
         else:
             confidence = "neutral"
-            reason = "active_child_product_without_negative_signal"
+            reason = "active_child_product"
         resolved_item = item.model_copy(
             update={
                 "canonical_url": canonical_url,
@@ -857,19 +835,11 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             if has_price or has_thumbnail:
                 return ("neutral", "non_catalog_listing_partial_signals")
             return ("uncertain", "non_catalog_listing_without_price_or_thumbnail")
-
-        availability = self._validate_catalog_product_page_availability(canonical_url)
-        if availability == "unavailable":
-            return ("low", "confirmed_unavailable_page")
-        if availability == "available":
-            if has_price:
-                return ("high", "catalog_page_with_purchase_signal_and_price")
-            return ("moderate", "catalog_page_with_purchase_signal")
         if has_price and has_thumbnail:
-            return ("moderate", "catalog_page_unknown_with_price_and_thumbnail")
+            return ("moderate", "catalog_product_with_price_and_thumbnail")
         if has_thumbnail:
-            return ("neutral", "catalog_page_unknown_with_thumbnail")
-        return ("uncertain", "catalog_page_unknown_without_price")
+            return ("neutral", "catalog_product_with_thumbnail")
+        return ("uncertain", "catalog_product_without_price_or_thumbnail")
 
     def _is_current_product_disabled_in_pickers(self, product_id: str, pickers: object) -> bool:
         if not isinstance(pickers, list):
@@ -892,30 +862,6 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
                 if isinstance(tags, list) and any(str(tag).strip().lower() == "disabled" for tag in tags):
                     return True
         return False
-
-    def _validate_catalog_product_page_availability(self, url: str) -> str | None:
-        cached = self._page_availability_cache.get(url)
-        if cached is not None or url in self._page_availability_cache:
-            return cached
-
-        html, _resolved_url = AdminProductImportService._fetch_html_with_redirects(url)
-        normalized_html = self._normalize_page_text(html)
-        if any(marker in normalized_html for marker in self._UNAVAILABLE_PAGE_MARKERS):
-            self._page_availability_cache[url] = "unavailable"
-            return "unavailable"
-        if any(marker in normalized_html for marker in self._AVAILABLE_PAGE_MARKERS):
-            self._page_availability_cache[url] = "available"
-            return "available"
-
-        self._page_availability_cache[url] = "unknown"
-        return "unknown"
-
-    def _normalize_page_text(self, value: str) -> str:
-        normalized = unicodedata.normalize("NFKD", value)
-        normalized = normalized.encode("ascii", "ignore").decode("ascii")
-        normalized = normalized.lower()
-        normalized = re.sub(r"\s+", " ", normalized)
-        return normalized.strip()
 
     def _build_catalog_rerank_window(self, *, requested_limit: int, requested_page: int) -> tuple[int, int]:
         pool_limit = min(50, max(requested_limit * 4, requested_limit))
