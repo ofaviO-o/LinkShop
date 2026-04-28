@@ -90,13 +90,14 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
         requested_offset = (requested_page - 1) * requested_limit
         search_context = self._discover_search_context(normalized_query, access_token=access_token)
 
+        app_id = settings.mercado_livre_app_id.strip()
         search_url = (
             f"/sites/{settings.mercado_livre_site_id}/search"
             f"?q={quote(normalized_query)}"
             f"&buying_mode=buy_it_now"
-            f"&accepts_mercadopago=true"
             f"&limit={requested_limit}"
             f"&offset={requested_offset}"
+            + (f"&app_id={quote(app_id)}" if app_id else "")
         )
         marketplace_payload = self._get_json(search_url, access_token=access_token)
 
@@ -356,6 +357,18 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             error_detail = self._extract_http_error_detail(exc)
             if exc.code == 404:
                 raise NotFoundError("Mercado Livre item or catalog product was not found", code="MERCADO_LIVRE_ITEM_NOT_FOUND") from exc
+            if exc.code == 403:
+                if access_token:
+                    raise ExternalServiceError(
+                        "Mercado Livre recusou o token OAuth. Verifique se o app esta ativo e com permissao de leitura no painel de desenvolvedores.",
+                        code="MERCADO_LIVRE_TOKEN_REJECTED",
+                        status_code=502,
+                    ) from exc
+                raise ExternalServiceError(
+                    "Mercado Livre exige autenticacao. Conecte uma conta via OAuth no painel admin.",
+                    code="MERCADO_LIVRE_AUTH_REQUIRED",
+                    status_code=502,
+                ) from exc
             message = self._build_http_error_message(path=path, status_code=exc.code, detail=error_detail)
             raise ExternalServiceError(
                 message,
