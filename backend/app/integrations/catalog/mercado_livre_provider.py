@@ -646,9 +646,6 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             buy_box_winner = raw_product.get("buy_box_winner") if isinstance(raw_product.get("buy_box_winner"), dict) else {}
             price = self._to_decimal(buy_box_winner.get("price"))
 
-            if price is None or price <= 0:
-                continue
-
             items.append(
                 CatalogSearchItem(
                     marketplace=self.marketplace,
