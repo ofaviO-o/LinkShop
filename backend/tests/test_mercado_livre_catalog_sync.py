@@ -451,8 +451,8 @@ def test_mercado_livre_search_keeps_catalog_results_without_falling_back_to_mark
                 "permalink": "https://www.mercadolivre.com.br/p/MLB40287828",
                 "name": "Apple iPhone 16 Plus (512 GB) - Rosa",
                 "children_ids": [],
-                "buy_box_winner": None,
-                "pickers": [{"picker_id": "INTERNAL_MEMORY", "products": [{"product_id": "MLB40287828", "tags": ["selected"]}]}],
+                "buy_box_winner": {"item_id": "MLB999001", "price": 8999.0, "currency_id": "BRL"},
+                "pickers": [],
             }
 
         if path.startswith("/sites/MLB/search?"):
@@ -466,7 +466,7 @@ def test_mercado_livre_search_keeps_catalog_results_without_falling_back_to_mark
 
     assert any(path.startswith("/products/search?") for path in requested_paths)
     assert [item.external_id for item in result.items] == ["MLB40287828"]
-    assert result.items[0].availability_confidence == "moderate"
+    assert result.items[0].availability_confidence == "high"
 
 
 def test_mercado_livre_search_rejects_disabled_picker_variant_but_keeps_active_children(monkeypatch) -> None:
@@ -538,7 +538,7 @@ def test_mercado_livre_search_rejects_disabled_picker_variant_but_keeps_active_c
                 "permalink": "https://www.mercadolivre.com.br/p/MLB40287825",
                 "name": "Apple iPhone 16 Plus (128 GB) - Ultramarino",
                 "children_ids": [],
-                "buy_box_winner": None,
+                "buy_box_winner": {"item_id": "MLB999025", "price": 7499.0, "currency_id": "BRL"},
                 "pickers": [],
             }
 
@@ -548,8 +548,11 @@ def test_mercado_livre_search_rejects_disabled_picker_variant_but_keeps_active_c
 
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
-    assert [item.external_id for item in result.items] == ["MLB40287828", "MLB40287825"]
-    assert [item.availability_confidence for item in result.items] == ["moderate", "neutral"]
+    # MLB40287828: no buy_box_winner → rejected
+    # MLB40287817: disabled in pickers → rejected
+    # MLB40287825: has buy_box_winner → available → kept
+    assert [item.external_id for item in result.items] == ["MLB40287825"]
+    assert [item.availability_confidence for item in result.items] == ["high"]
 
 
 def test_mercado_livre_search_rejects_parent_catalog_product(monkeypatch) -> None:
@@ -671,8 +674,8 @@ def test_mercado_livre_search_orders_documented_catalog_confidence_groups(monkey
                 "permalink": "https://www.mercadolivre.com.br/p/MLB-MODERATE",
                 "name": "iPhone 16 512 GB Azul",
                 "children_ids": [],
-                "buy_box_winner": None,
-                "pickers": [{"picker_id": "COLOR", "products": [{"product_id": "MLB-MODERATE", "tags": ["selected"]}]}],
+                "buy_box_winner": {"item_id": "MLBITEMMOD", "price": 6999.0, "currency_id": "BRL"},
+                "pickers": [],
             }
 
         if path == "/products/MLB-NEUTRAL":
@@ -714,13 +717,11 @@ def test_mercado_livre_search_orders_documented_catalog_confidence_groups(monkey
 
     result = provider.search_products(query="iphone 16", limit=5, access_token="token")
 
-    assert [item.external_id for item in result.items] == ["MLB-HIGH", "MLB-MODERATE", "MLB-NEUTRAL", "MLB-UNCERTAIN"]
-    assert [item.availability_confidence for item in result.items] == [
-        "high",
-        "moderate",
-        "neutral",
-        "neutral",
-    ]
+    # MLB-NEUTRAL, MLB-UNCERTAIN: no buy_box_winner → rejected
+    # MLB-LOW: disabled in pickers → rejected
+    # MLB-HIGH and MLB-MODERATE both have buy_box_winner → available → kept with "high"
+    assert [item.external_id for item in result.items] == ["MLB-HIGH", "MLB-MODERATE"]
+    assert [item.availability_confidence for item in result.items] == ["high", "high"]
 
 
 def test_mercado_livre_search_uses_reranked_pool_to_keep_unavailable_items_off_the_first_slot(monkeypatch) -> None:

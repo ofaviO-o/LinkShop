@@ -8,7 +8,8 @@
       "Bash(python -m pytest backend/tests/test_mercado_livre_catalog_sync.py -q)",
       "Bash(python -m pytest backend/tests/test_price_watches.py::test_price_watch_flow -x -q)",
       "Bash(python -m pytest backend/tests/test_price_watches.py::test_price_watch_flow -x)",
-      "Bash(python -m pytest backend/tests -q)"
+      "Bash(python -m pytest backend/tests -q)",
+      "Bash(python -m pytest backend/tests -q --ignore=backend/tests/test_dev_workflows.py --ignore=backend/tests/test_price_watches.py)"
     ]
   }
 }

@@ -773,19 +773,11 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
     ) -> CatalogSearchItem | None:
         product = self._get_optional_json(f"/products/{quote(item.external_id)}", access_token=access_token)
         if not isinstance(product, dict):
-            confidence, reason = self._classify_search_item_availability_confidence(item)
             self.logger.warning(
-                "Mercado Livre strict availability external_id=%s decision=kept reason=missing_product_detail confidence=%s fallback_reason=%s",
+                "Mercado Livre strict availability external_id=%s decision=rejected reason=missing_product_detail",
                 item.external_id,
-                confidence,
-                reason,
             )
-            return item.model_copy(
-                update={
-                    "availability_confidence": confidence,
-                    "availability_reason": f"missing_product_detail:{reason}",
-                }
-            )
+            return None
 
         product_status = self._normalize_optional_text(product.get("status")) or "inactive"
         if product_status != "active":
@@ -810,7 +802,6 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             )
             return None
 
-        pickers = product.get("pickers")
         buy_box_winner = product.get("buy_box_winner") if isinstance(product.get("buy_box_winner"), dict) else {}
         buy_box_price = self._to_decimal(buy_box_winner.get("price"))
         has_buy_box_signal = bool(
@@ -818,30 +809,15 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             or (buy_box_price is not None and buy_box_price > 0)
         )
 
-        if has_buy_box_signal:
-            confidence = "high"
-            reason = "buy_box_winner"
+        if not has_buy_box_signal:
             self.logger.info(
-                "Mercado Livre strict availability external_id=%s decision=accepted confidence=%s reason=%s",
+                "Mercado Livre strict availability external_id=%s decision=rejected reason=no_buy_box_signal",
                 item.external_id,
-                confidence,
-                reason,
             )
-            return item.model_copy(
-                update={
-                    "canonical_url": canonical_url,
-                    "thumbnail_url": self._extract_catalog_product_thumbnail(product) or item.thumbnail_url,
-                    "price": buy_box_price or item.price,
-                    "original_price": self._to_decimal(buy_box_winner.get("original_price")) or item.original_price,
-                    "availability_confidence": confidence,
-                    "availability_reason": reason,
-                }
-            )
+            return None
 
-        # No buy_box — fail-open: keep item, confidence based on picker presence
-        in_picker = self._is_current_product_in_pickers(item.external_id, pickers)
-        confidence = "moderate" if in_picker else "neutral"
-        reason = "catalog_no_buy_box_in_picker" if in_picker else "catalog_no_buy_box_no_picker"
+        confidence = "high"
+        reason = "buy_box_winner"
         self.logger.info(
             "Mercado Livre strict availability external_id=%s decision=accepted confidence=%s reason=%s",
             item.external_id,
@@ -852,6 +828,8 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             update={
                 "canonical_url": canonical_url,
                 "thumbnail_url": self._extract_catalog_product_thumbnail(product) or item.thumbnail_url,
+                "price": buy_box_price or item.price,
+                "original_price": self._to_decimal(buy_box_winner.get("original_price")) or item.original_price,
                 "availability_confidence": confidence,
                 "availability_reason": reason,
             }
