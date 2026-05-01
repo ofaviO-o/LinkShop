@@ -97,18 +97,21 @@ class MercadoLivreOAuthService:
         connection = cls._get_connection(db)
         if connection and connection.access_token:
             expires_at = cls._as_aware_utc(connection.access_token_expires_at)
-            if expires_at and expires_at <= datetime.now(timezone.utc) + timedelta(seconds=60):
+            now = datetime.now(timezone.utc)
+            should_refresh = expires_at is not None and expires_at <= now + timedelta(seconds=60)
+            if should_refresh:
                 try:
                     connection = cls.refresh_connection(db)
                 except Exception:
-                    pass
+                    if expires_at <= now:
+                        # Token genuinamente expirado e refresh falhou — não usar token podre
+                        env_token = settings.mercado_livre_access_token.get_secret_value().strip()
+                        return env_token or None
+                    # Refresh falhou mas token ainda não expirou — usar por enquanto
             return connection.access_token
 
         env_access_token = settings.mercado_livre_access_token.get_secret_value().strip()
-        if env_access_token:
-            return env_access_token
-
-        return None
+        return env_access_token or None
 
     @classmethod
     def refresh_connection(cls, db: Session) -> IntegrationConnection:

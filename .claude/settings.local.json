@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest backend/tests -x -q)",
+      "Bash(python -m pytest backend/tests -q --ignore=backend/tests/test_dev_workflows.py)",
+      "Bash(python -m pytest backend/tests/test_mercado_livre_catalog_sync.py::test_mercado_livre_search_keeps_catalog_results_without_falling_back_to_marketplace -x -q)",
+      "Bash(python -m pytest backend/tests/test_mercado_livre_catalog_sync.py::test_mercado_livre_provider_http_error_becomes_structured_external_error -x -q)",
+      "Bash(python -m pytest backend/tests/test_mercado_livre_catalog_sync.py -q)",
+      "Bash(python -m pytest backend/tests/test_price_watches.py::test_price_watch_flow -x -q)",
+      "Bash(python -m pytest backend/tests/test_price_watches.py::test_price_watch_flow -x)",
+      "Bash(python -m pytest backend/tests -q)"
+    ]
+  }
+}

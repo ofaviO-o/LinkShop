@@ -87,27 +87,57 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
 
         requested_limit = max(1, min(limit, 50))
         requested_page = max(1, page)
-        requested_offset = (requested_page - 1) * requested_limit
         search_context = self._discover_search_context(normalized_query, access_token=access_token)
 
-        search_url = (
-            f"/sites/{settings.mercado_livre_site_id}/search"
-            f"?q={quote(normalized_query)}"
-            f"&buying_mode=buy_it_now"
-            f"&limit={requested_limit}"
-            f"&offset={requested_offset}"
-        )
-        marketplace_payload = self._get_json(search_url, access_token=access_token)
+        if access_token:
+            pool_limit, pool_offset = self._build_catalog_rerank_window(
+                requested_limit=requested_limit,
+                requested_page=requested_page,
+            )
+            catalog_path = self._build_catalog_search_path(
+                query=normalized_query,
+                limit=pool_limit,
+                offset=pool_offset,
+                search_context=search_context,
+            )
+            catalog_payload = self._get_json(catalog_path, access_token=access_token)
+            catalog_items = self._parse_catalog_product_search_results(catalog_payload)
+            total = self._extract_total_from_paging(catalog_payload, fallback=len(catalog_items))
+            total_pages = max(1, math.ceil(total / requested_limit)) if total else 1
+            resolved_items = self._resolve_catalog_display_items(catalog_items, access_token=access_token)
+            ranked_items = self._rank_search_results(
+                query=normalized_query,
+                items=resolved_items,
+                search_context=search_context,
+                limit=pool_limit,
+            )
+            requested_offset = (requested_page - 1) * requested_limit
+            items = self._slice_catalog_reranked_page(
+                items=ranked_items,
+                requested_limit=requested_limit,
+                requested_offset=requested_offset,
+                catalog_fetch_offset=pool_offset,
+            )
+        else:
+            requested_offset = (requested_page - 1) * requested_limit
+            search_url = (
+                f"/sites/{settings.mercado_livre_site_id}/search"
+                f"?q={quote(normalized_query)}"
+                f"&buying_mode=buy_it_now"
+                f"&limit={requested_limit}"
+                f"&offset={requested_offset}"
+            )
+            marketplace_payload = self._get_json(search_url, access_token=None)
+            marketplace_items = self._parse_marketplace_search_results(marketplace_payload)
+            total = self._extract_total_from_paging(marketplace_payload, fallback=len(marketplace_items))
+            total_pages = max(1, math.ceil(total / requested_limit)) if total else 1
+            items = self._rank_search_results(
+                query=normalized_query,
+                items=marketplace_items,
+                search_context=search_context,
+                limit=requested_limit,
+            )
 
-        marketplace_items = self._parse_marketplace_search_results(marketplace_payload)
-        total = self._extract_total_from_paging(marketplace_payload, fallback=len(marketplace_items))
-        total_pages = max(1, math.ceil(total / requested_limit)) if total else 1
-        items = self._rank_search_results(
-            query=normalized_query,
-            items=marketplace_items,
-            search_context=search_context,
-            limit=requested_limit,
-        )
         return CatalogSearchResult(
             provider=self.provider_name,
             query=normalized_query,
@@ -369,9 +399,10 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
                         code="MERCADO_LIVRE_TOKEN_REJECTED",
                         status_code=502,
                     ) from exc
+                message = self._build_http_error_message(path=path, status_code=exc.code, detail=error_detail)
                 raise ExternalServiceError(
-                    "Mercado Livre exige autenticacao. Conecte uma conta via OAuth no painel admin.",
-                    code="MERCADO_LIVRE_AUTH_REQUIRED",
+                    message,
+                    code="MERCADO_LIVRE_HTTP_ERROR",
                     status_code=502,
                 ) from exc
             message = self._build_http_error_message(path=path, status_code=exc.code, detail=error_detail)
@@ -581,7 +612,7 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
                 continue
 
             status = self._normalize_optional_text(raw_item.get("status"))
-            if not status or status != "active":
+            if status and status != "active":
                 continue
 
             available_quantity = self._to_int(raw_item.get("available_quantity"))
@@ -779,38 +810,52 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             )
             return None
 
+        pickers = product.get("pickers")
         buy_box_winner = product.get("buy_box_winner") if isinstance(product.get("buy_box_winner"), dict) else {}
         buy_box_price = self._to_decimal(buy_box_winner.get("price"))
         has_buy_box_signal = bool(
             self._normalize_reference_id(buy_box_winner.get("item_id"))
             or (buy_box_price is not None and buy_box_price > 0)
         )
-        if not has_buy_box_signal:
-            self.logger.info(
-                "Mercado Livre strict availability external_id=%s decision=rejected reason=no_buy_box_signal",
-                item.external_id,
-            )
-            return None
 
-        confidence = "high"
-        reason = "buy_box_winner"
-        resolved_item = item.model_copy(
-            update={
-                "canonical_url": canonical_url,
-                "thumbnail_url": self._extract_catalog_product_thumbnail(product) or item.thumbnail_url,
-                "price": buy_box_price or item.price,
-                "original_price": self._to_decimal(buy_box_winner.get("original_price")) or item.original_price,
-                "availability_confidence": confidence,
-                "availability_reason": reason,
-            }
-        )
+        if has_buy_box_signal:
+            confidence = "high"
+            reason = "buy_box_winner"
+            self.logger.info(
+                "Mercado Livre strict availability external_id=%s decision=accepted confidence=%s reason=%s",
+                item.external_id,
+                confidence,
+                reason,
+            )
+            return item.model_copy(
+                update={
+                    "canonical_url": canonical_url,
+                    "thumbnail_url": self._extract_catalog_product_thumbnail(product) or item.thumbnail_url,
+                    "price": buy_box_price or item.price,
+                    "original_price": self._to_decimal(buy_box_winner.get("original_price")) or item.original_price,
+                    "availability_confidence": confidence,
+                    "availability_reason": reason,
+                }
+            )
+
+        # No buy_box — fail-open: keep item, confidence based on picker presence
+        in_picker = self._is_current_product_in_pickers(item.external_id, pickers)
+        confidence = "moderate" if in_picker else "neutral"
+        reason = "catalog_no_buy_box_in_picker" if in_picker else "catalog_no_buy_box_no_picker"
         self.logger.info(
             "Mercado Livre strict availability external_id=%s decision=accepted confidence=%s reason=%s",
             item.external_id,
             confidence,
             reason,
         )
-        return resolved_item
+        return item.model_copy(
+            update={
+                "canonical_url": canonical_url,
+                "thumbnail_url": self._extract_catalog_product_thumbnail(product) or item.thumbnail_url,
+                "availability_confidence": confidence,
+                "availability_reason": reason,
+            }
+        )
 
     def _classify_search_item_availability_confidence(self, item: CatalogSearchItem) -> tuple[str, str]:
         canonical_url = self._normalize_optional_text(item.canonical_url)
@@ -851,6 +896,24 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
                     return True
         return False
 
+    def _is_current_product_in_pickers(self, product_id: str, pickers: object) -> bool:
+        if not isinstance(pickers, list) or not pickers:
+            return False
+        normalized_product_id = product_id.strip().upper()
+        for picker in pickers:
+            if not isinstance(picker, dict):
+                continue
+            products = picker.get("products")
+            if not isinstance(products, list):
+                continue
+            for picker_product in products:
+                if not isinstance(picker_product, dict):
+                    continue
+                picker_product_id = self._normalize_reference_id(picker_product.get("product_id"))
+                if picker_product_id == normalized_product_id:
+                    return True
+        return False
+
     def _build_catalog_rerank_window(self, *, requested_limit: int, requested_page: int) -> tuple[int, int]:
         pool_limit = min(50, max(requested_limit * 4, requested_limit))
         requested_offset = (requested_page - 1) * requested_limit
@@ -888,6 +951,12 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
             if dedupe_key in seen_keys:
                 continue
             seen_keys.add(dedupe_key)
+            if not item.availability_confidence:
+                confidence, reason = self._classify_search_item_availability_confidence(item)
+                item = item.model_copy(update={
+                    "availability_confidence": confidence,
+                    "availability_reason": reason,
+                })
             score = self._score_search_item(
                 item=item,
                 query_text=query_text,
@@ -901,6 +970,7 @@ class MercadoLivreCatalogProvider(BaseCatalogProvider):
 
         scored_items.sort(
             key=lambda entry: (
+                self._AVAILABILITY_CONFIDENCE_PRIORITY.get(entry[1].availability_confidence or "uncertain", 0),
                 entry[0],
                 1 if entry[1].price is not None else 0,
                 len(entry[1].title),

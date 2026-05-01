@@ -9,7 +9,9 @@ from app.schemas.catalog_integration import (
     MercadoLivreCatalogSearchRead,
     MercadoLivreCatalogSyncRead,
 )
+from app.services.mercado_livre_availability_service import MercadoLivreAvailabilityService
 from app.services.mercado_livre_catalog_sync_service import MercadoLivreCatalogSyncService
+from app.services.mercado_livre_oauth_service import MercadoLivreOAuthService
 
 
 router = APIRouter()
@@ -80,3 +82,14 @@ def sync_mercado_livre_catalog_by_external_id(
     _ = current_user
     result = MercadoLivreCatalogSyncService.sync_product_by_external_id(db, external_id=externalId)
     return MercadoLivreCatalogSyncRead.model_validate(result)
+
+
+@router.get("/catalog/mercado-livre/availability/{product_id}")
+def check_mercado_livre_availability(
+    product_id: str,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    _ = current_user
+    access_token = MercadoLivreOAuthService.resolve_access_token(db)
+    return MercadoLivreAvailabilityService.check(product_id, access_token=access_token)
