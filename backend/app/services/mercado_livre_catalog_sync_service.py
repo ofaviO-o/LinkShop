@@ -22,9 +22,13 @@ class MercadoLivreCatalogSyncService:
 
     @classmethod
     def search_products(cls, db: Session, *, query: str, limit: int = 10, page: int = 1) -> CatalogSearchResult:
+        import logging as _logging
+        _log = _logging.getLogger("linkshop.mercado_livre")
         try:
             access_token = MercadoLivreOAuthService.get_app_token()
-        except Exception:
+            _log.info("ML search token_source=client_credentials")
+        except Exception as _exc:
+            _log.warning("ML app token failed reason=%s falling_back=user_token", _exc)
             access_token = MercadoLivreOAuthService.resolve_access_token(db)
         return cls.provider.search_products(query=query, limit=limit, page=page, access_token=access_token)
 
